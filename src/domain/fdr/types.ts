@@ -5,6 +5,8 @@ export interface Team {
   code: number;
   name: string;
   shortName: string;
+  /** Current league position as published by FPL (`teams[].position`); null/absent if unknown. */
+  officialPosition?: number | null;
 }
 
 export interface Fixture {

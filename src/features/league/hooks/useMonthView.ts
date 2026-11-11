@@ -24,6 +24,7 @@ export interface MonthOption {
 const NO_GAMEWEEKS: Gameweek[] = [];
 const NO_PARTICIPANTS: Participant[] = [];
 const NO_IDS: number[] = [];
+const NO_ALLOWANCES: Record<number, number> = {};
 
 const CURRENT_RULES: PrizeRules = {
   entryFee: LEAGUE_RULES.entryFee,
@@ -89,6 +90,7 @@ export function useMonthView(monthKey: MonthKey) {
   const doc = monthDoc.data ?? null;
   const snapshot = doc?.snapshot ?? null;
   const participants = doc?.participants ?? NO_PARTICIPANTS;
+  const penaltyFree = doc?.penaltyFree ?? NO_ALLOWANCES;
 
   const gameweeks = useMemo(() => {
     if (snapshot) return snapshot.gameweeks;
@@ -109,8 +111,8 @@ export function useMonthView(monthKey: MonthKey) {
   const rules = snapshot?.rules ?? CURRENT_RULES;
 
   const standings = useMemo(
-    () => computeMonthStandings({ gameweeks, participants, scores, rules }),
-    [gameweeks, participants, scores, rules],
+    () => computeMonthStandings({ gameweeks, participants, scores, rules, penaltyFree }),
+    [gameweeks, participants, scores, rules, penaltyFree],
   );
 
   const scoresComplete =

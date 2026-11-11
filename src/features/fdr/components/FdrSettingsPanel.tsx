@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { FDR_DEFAULT_LAST_SEASON_POSITION } from '@/config/fdr';
-import type { Team } from '@/domain/fdr';
+import { FDR_DEFAULT_LAST_SEASON_POSITION, FDR_GAMEWEEK_WEIGHTS_TOTAL } from '@/config/fdr';
+import { validateGameweekWeights, type Team } from '@/domain/fdr';
 import { roundHalfAwayFromZero } from '@/domain/shared/math';
 import {
   DEFAULT_FDR,
@@ -8,7 +8,7 @@ import {
   useSaveFdrSettings,
   type FdrSettings,
 } from '@/features/settings';
-import { Alert, Button, Card } from '@/components/ui';
+import { Alert, Button, Card, cn } from '@/components/ui';
 import { errorMessage } from '@/utils/errors';
 
 interface Props {
@@ -30,14 +30,24 @@ function formatWeight(n: number): string {
   return String(roundHalfAwayFromZero(n, 4));
 }
 
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th'];
+
 /** Admin: edit the formula weights and last season's final positions. */
 export function FdrSettingsPanel({ settings, teams, onDone }: Props) {
   const save = useSaveFdrSettings();
+  const [gwWeights, setGwWeights] = useState(() => settings.gameweekWeights.map(formatWeight));
   const [lastWeight, setLastWeight] = useState(formatWeight(settings.lastSeasonWeight));
   const [thisWeight, setThisWeight] = useState(formatWeight(1 - settings.lastSeasonWeight));
   const [label, setLabel] = useState(settings.lastSeasonLabel);
   const [positions, setPositions] = useState(() => toDraftPositions(settings, teams));
   const [formError, setFormError] = useState<string | null>(null);
+
+  const gwWeightNumbers = gwWeights.map((w) => (w.trim() === '' ? Number.NaN : Number(w)));
+  const gwWeightsTotal = roundHalfAwayFromZero(
+    gwWeightNumbers.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0),
+    4,
+  );
+  const gwWeightsError = validateGameweekWeights(gwWeightNumbers);
 
   const onLastWeightChange = (value: string) => {
     setLastWeight(value);
@@ -52,6 +62,7 @@ export function FdrSettingsPanel({ settings, teams, onDone }: Props) {
   };
 
   const resetToDefaults = () => {
+    setGwWeights(DEFAULT_FDR.gameweekWeights.map(formatWeight));
     setLastWeight(formatWeight(DEFAULT_FDR.lastSeasonWeight));
     setThisWeight(formatWeight(1 - DEFAULT_FDR.lastSeasonWeight));
     setLabel(DEFAULT_FDR.lastSeasonLabel);
@@ -61,6 +72,11 @@ export function FdrSettingsPanel({ settings, teams, onDone }: Props) {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     setFormError(null);
+
+    if (gwWeightsError) {
+      setFormError(gwWeightsError);
+      return;
+    }
 
     const last = Number(lastWeight);
     const current = Number(thisWeight);
@@ -85,6 +101,7 @@ export function FdrSettingsPanel({ settings, teams, onDone }: Props) {
 
     save.mutate(
       {
+        gameweekWeights: gwWeightNumbers.map((w) => roundHalfAwayFromZero(w, 4)),
         lastSeasonWeight: roundHalfAwayFromZero(last, 4),
         lastSeasonLabel: label.trim().slice(0, 20),
         lastSeasonPositions: parsed,
@@ -110,6 +127,43 @@ export function FdrSettingsPanel({ settings, teams, onDone }: Props) {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
+        <fieldset>
+          <legend className="label">
+            Gameweek weights, nearest first (must add up to {FDR_GAMEWEEK_WEIGHTS_TOTAL})
+          </legend>
+          <div className="grid max-w-xl grid-cols-5 gap-2">
+            {gwWeights.map((value, i) => (
+              <div key={ORDINALS[i]}>
+                <label htmlFor={`gw-weight-${i}`} className="text-xs text-slate-500">
+                  {ORDINALS[i]} GW
+                </label>
+                <input
+                  id={`gw-weight-${i}`}
+                  className="input px-2"
+                  type="number"
+                  min={0}
+                  max={FDR_GAMEWEEK_WEIGHTS_TOTAL}
+                  step={0.1}
+                  value={value}
+                  onChange={(e) =>
+                    setGwWeights((prev) => prev.map((w, j) => (j === i ? e.target.value : w)))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          <p
+            className={cn(
+              'mt-1 text-xs',
+              gwWeightsError ? 'font-medium text-red-600' : 'text-emerald-700',
+            )}
+            aria-live="polite"
+          >
+            Total: {gwWeightsTotal} / {FDR_GAMEWEEK_WEIGHTS_TOTAL}
+            {gwWeightsError ? '' : ' ✓'}
+          </p>
+        </fieldset>
+
         <fieldset>
           <legend className="label">Position weights (must add up to 1)</legend>
           <div className="grid max-w-md grid-cols-2 gap-4">

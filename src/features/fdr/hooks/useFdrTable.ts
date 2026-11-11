@@ -4,14 +4,16 @@ import {
   buildFdrTable,
   clampWindowStart,
   computeLeagueTable,
+  createFdrFormula,
   fdrWindow,
-  weightsFromLastSeason,
+  resolveThisSeasonPositions,
   type Team,
 } from '@/domain/fdr';
-import { DEFAULT_FDR, useFdrSettings } from '@/features/settings';
+import { DEFAULT_FDR, useFdrSettings, type StoredFdrSettings } from '@/features/settings';
 import { useFixtures, useSeasonData } from '@/lib/fpl/queries';
 
 const DEFAULT_TOTAL_GAMEWEEKS = 38;
+const DEFAULT_STORED: StoredFdrSettings = { ...DEFAULT_FDR, updatedAt: null, updatedBy: null };
 
 /**
  * FDR table for a 5-gameweek window starting at `requestedStart`
@@ -27,9 +29,13 @@ export function useFdrTable(requestedStart: number | undefined) {
   const nextGameweek = gameweeks?.find((gw) => gw.status === 'upcoming')?.id ?? totalGameweeks;
   const defaultStart = clampWindowStart(nextGameweek, totalGameweeks);
   const start = clampWindowStart(requestedStart ?? defaultStart, totalGameweeks);
+  const gameweekIds = useMemo(() => fdrWindow(start, totalGameweeks), [start, totalGameweeks]);
 
-  const settings = settingsQuery.data ?? DEFAULT_FDR;
-  const weights = weightsFromLastSeason(settings.lastSeasonWeight);
+  const settings = settingsQuery.data ?? DEFAULT_STORED;
+  const formula = useMemo(
+    () => createFdrFormula(settings.gameweekWeights, settings.lastSeasonWeight),
+    [settings.gameweekWeights, settings.lastSeasonWeight],
+  );
 
   const teams = season.data?.teams;
   const teamsById = useMemo(
@@ -41,31 +47,41 @@ export function useFdrTable(requestedStart: number | undefined) {
     () => (teams && fixtures.data ? computeLeagueTable(teams, fixtures.data) : []),
     [teams, fixtures.data],
   );
+  const thisSeason = useMemo(
+    () => resolveThisSeasonPositions(teams ?? [], leagueTable),
+    [teams, leagueTable],
+  );
 
   const rows = useMemo(() => {
     if (!teams || !fixtures.data) return [];
     return buildFdrTable({
       teams,
       fixtures: fixtures.data,
-      gameweekIds: fdrWindow(start, totalGameweeks),
-      thisSeasonPositions: new Map(leagueTable.map((r) => [r.team.id, r.position])),
+      gameweekIds,
+      thisSeasonPositions: thisSeason.positions,
       lastSeasonPositions: settings.lastSeasonPositions,
       defaultLastSeasonPosition: FDR_DEFAULT_LAST_SEASON_POSITION,
-      weights: weightsFromLastSeason(settings.lastSeasonWeight),
+      formula,
     });
-  }, [teams, fixtures.data, start, totalGameweeks, leagueTable, settings]);
+  }, [teams, fixtures.data, gameweekIds, thisSeason, settings.lastSeasonPositions, formula]);
+
+  // "Last updated" = when the oldest piece of FPL data on screen was fetched.
+  const fetchedAt = [season.dataUpdatedAt, fixtures.dataUpdatedAt].filter((t) => t > 0);
 
   return {
     rows,
-    gameweekIds: fdrWindow(start, totalGameweeks),
+    gameweekIds,
     start,
     defaultStart,
     totalGameweeks,
     teams: teams ?? [],
     teamsById,
     leagueTable,
+    positionSource: thisSeason.source,
     settings,
-    weights,
+    formula,
+    dataUpdatedAt: fetchedAt.length ? new Date(Math.min(...fetchedAt)) : null,
+    isFetching: season.isFetching || fixtures.isFetching,
     isPending: season.isPending || fixtures.isPending || settingsQuery.isPending,
     error: season.error ?? fixtures.error ?? settingsQuery.error,
     refetch: () => {

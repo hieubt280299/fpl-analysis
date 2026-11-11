@@ -19,10 +19,40 @@ export interface MonthDoc {
   /** League the participants were picked from. */
   leagueId: number;
   participants: Participant[];
+  /**
+   * Penalty-free transfer-hit allowance (points) by entry id, applied to the month's first GW
+   * only. Only positive allowances are stored; everyone else gets 0.
+   */
+  penaltyFree: Record<number, number>;
   status: 'open' | 'finalized';
   snapshot: MonthSnapshot | null;
   updatedBy: string | null;
   updatedAt: Date | null;
+}
+
+/** Highest allowance an admin may grant (points). */
+export const MAX_PENALTY_FREE_POINTS = 100;
+
+export function isValidPenaltyFree(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= MAX_PENALTY_FREE_POINTS
+  );
+}
+
+/** Keeps only valid, positive allowances for current participants. */
+export function cleanPenaltyFree(
+  penaltyFree: Readonly<Record<number, number>>,
+  participants: readonly Participant[],
+): Record<number, number> {
+  const ids = new Set(participants.map((p) => p.entryId));
+  return Object.fromEntries(
+    Object.entries(penaltyFree)
+      .map(([id, points]) => [Number(id), points] as const)
+      .filter(([id, points]) => ids.has(id) && isValidPenaltyFree(points) && points > 0),
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,12 +135,15 @@ function isTimestampLike(value: unknown): value is TimestampLike {
 export function parseMonthDoc(monthKey: MonthKey, data: unknown): MonthDoc | null {
   if (!isRecord(data)) return null;
   const snapshot = data.status === 'finalized' ? parseSnapshot(data.snapshot) : null;
+  const participants = Array.isArray(data.participants)
+    ? data.participants.map(parseParticipant).filter((p): p is Participant => p !== null)
+    : [];
+  const rawPenaltyFree = isRecord(data.penaltyFree) ? data.penaltyFree : {};
   return {
     monthKey,
     leagueId: toNumber(data.leagueId),
-    participants: Array.isArray(data.participants)
-      ? data.participants.map(parseParticipant).filter((p): p is Participant => p !== null)
-      : [],
+    participants,
+    penaltyFree: cleanPenaltyFree(rawPenaltyFree as Record<number, number>, participants),
     status: snapshot ? 'finalized' : 'open',
     snapshot,
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,

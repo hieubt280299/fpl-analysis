@@ -2,16 +2,23 @@
  * Fixture Difficulty Rating (FDR) analysis — formula constants and defaults.
  *
  * The spreadsheet formula for a team row is:
- *   AVG = ROUND( (GW1*2.6 + GW2*2.3 + GW3*2.0 + GW4*1.7 + GW5*1.4)
+ *   AVG = ROUND( (GW1*w1 + GW2*w2 + GW3*w3 + GW4*w4 + GW5*w5)
  *              * (0.8 + 0.01*LastSeasonPos*wLast + 0.01*ThisSeasonPos*wThis), 1 )
- * where wLast + wThis = 1 (admin-adjustable, default 0.1 / 0.9). Lower AVG = easier run.
+ * - w1..w5: admin-adjustable gameweek weights, must sum to 10 (default 2.6, 2.3, 2.0, 1.7, 1.4)
+ * - wLast + wThis = 1 (admin-adjustable, default 0.1 / 0.9)
+ * Lower AVG = easier run.
  *
  * ⚠️ Changing these changes every team's score. Update AGENT_GUIDE.md and src/domain/fdr/*.test.ts.
  */
 
-/** Weight per upcoming gameweek, nearest first. Its length defines the window size. */
-export const FDR_GAMEWEEK_WEIGHTS = [2.6, 2.3, 2.0, 1.7, 1.4] as const;
-export const FDR_WINDOW_SIZE = FDR_GAMEWEEK_WEIGHTS.length;
+/** Number of upcoming gameweeks in the FDR window. */
+export const FDR_WINDOW_SIZE = 5;
+
+/** Default weight per upcoming gameweek, nearest first (admin-adjustable). */
+export const FDR_DEFAULT_GAMEWEEK_WEIGHTS: readonly number[] = [2.6, 2.3, 2.0, 1.7, 1.4];
+
+/** Gameweek weights must always add up to exactly this. */
+export const FDR_GAMEWEEK_WEIGHTS_TOTAL = 10;
 
 export const FDR_BASE_MULTIPLIER = 0.8;
 export const FDR_POSITION_COEFFICIENT = 0.01;
@@ -20,7 +27,7 @@ export const FDR_POSITION_COEFFICIENT = 0.01;
 export const FDR_DEFAULT_LAST_SEASON_WEIGHT = 0.1;
 
 /** Value used in the formula when a team has no fixture in a gameweek (blank GW). */
-export const FDR_BLANK_GAMEWEEK_VALUE = 5;
+export const FDR_BLANK_GAMEWEEK_VALUE = 6;
 
 /** Last-season position for teams with no entry (i.e. promoted teams), as in the original sheet. */
 export const FDR_DEFAULT_LAST_SEASON_POSITION = 20;

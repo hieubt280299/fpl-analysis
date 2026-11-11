@@ -21,7 +21,8 @@ export default {
           3: '#ffe484',
           4: '#f8a36b',
           5: '#f06a6a',
-          blank: '#d1d5db',
+          // Blank GW counts as 6 — worse than any real fixture.
+          blank: '#7f1d1d',
         },
       },
       fontFamily: {

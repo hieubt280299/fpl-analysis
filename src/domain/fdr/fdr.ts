@@ -1,16 +1,24 @@
 import {
   FDR_BASE_MULTIPLIER,
   FDR_BLANK_GAMEWEEK_VALUE,
-  FDR_GAMEWEEK_WEIGHTS,
+  FDR_GAMEWEEK_WEIGHTS_TOTAL,
   FDR_POSITION_COEFFICIENT,
   FDR_WINDOW_SIZE,
 } from '@/config/fdr';
 import { clamp, competitionRanks, roundHalfAwayFromZero, sum } from '../shared/math';
 import type { Fixture, Team } from './types';
 
-export interface FdrWeights {
+/** Weights of last/this season's league position. Always sum to 1. */
+export interface PositionWeights {
   lastSeason: number;
   thisSeason: number;
+}
+
+/** Everything admin-adjustable in the formula. */
+export interface FdrFormula {
+  /** One weight per gameweek in the window, nearest first. Sums to 10. */
+  gameweekWeights: readonly number[];
+  positionWeights: PositionWeights;
 }
 
 export interface FdrFixtureRef {
@@ -41,38 +49,63 @@ export interface FdrRow {
   rank: number;
 }
 
-/** Weights always sum to 1: the admin sets last season's weight, this season gets the rest. */
-export function weightsFromLastSeason(lastSeasonWeight: number): FdrWeights {
+/** Position weights always sum to 1: the admin sets last season's, this season gets the rest. */
+export function weightsFromLastSeason(lastSeasonWeight: number): PositionWeights {
   const lastSeason = roundHalfAwayFromZero(clamp(lastSeasonWeight, 0, 1), 4);
   return { lastSeason, thisSeason: roundHalfAwayFromZero(1 - lastSeason, 4) };
 }
 
+export function createFdrFormula(
+  gameweekWeights: readonly number[],
+  lastSeasonWeight: number,
+): FdrFormula {
+  return { gameweekWeights, positionWeights: weightsFromLastSeason(lastSeasonWeight) };
+}
+
+/** Returns an error message, or null when the weights are valid (5 non-negative, summing to 10). */
+export function validateGameweekWeights(weights: readonly number[]): string | null {
+  if (weights.length !== FDR_WINDOW_SIZE) {
+    return `Exactly ${FDR_WINDOW_SIZE} gameweek weights are required.`;
+  }
+  if (weights.some((w) => !Number.isFinite(w) || w < 0)) {
+    return 'Gameweek weights must be numbers of 0 or more.';
+  }
+  const total = sum(weights);
+  if (Math.abs(total - FDR_GAMEWEEK_WEIGHTS_TOTAL) > 1e-6) {
+    return `Gameweek weights must add up to ${FDR_GAMEWEEK_WEIGHTS_TOTAL} (currently ${roundHalfAwayFromZero(total, 4)}).`;
+  }
+  return null;
+}
+
 /**
  * The value a gameweek contributes to the formula.
- * Single fixture → its difficulty. Double GW → mean difficulty of its fixtures.
- * Blank GW → FDR_BLANK_GAMEWEEK_VALUE.
+ * - Single fixture → its difficulty.
+ * - Double (or more) GW → 1 / (1/M1 + 1/M2 + …): more matches make the gameweek easier.
+ * - Blank GW → FDR_BLANK_GAMEWEEK_VALUE (6, worse than any real fixture).
  */
 export function cellValue(fixtures: readonly Pick<FdrFixtureRef, 'difficulty'>[]): number {
-  if (fixtures.length === 0) return FDR_BLANK_GAMEWEEK_VALUE;
-  return sum(fixtures.map((f) => f.difficulty)) / fixtures.length;
+  const difficulties = fixtures.map((f) => f.difficulty).filter((d) => d > 0);
+  if (difficulties.length === 0) return FDR_BLANK_GAMEWEEK_VALUE;
+  if (difficulties.length === 1) return difficulties[0] as number;
+  return 1 / sum(difficulties.map((d) => 1 / d));
 }
 
 /**
  * Spreadsheet formula (unrounded):
- *   (v1*2.6 + v2*2.3 + v3*2.0 + v4*1.7 + v5*1.4)
+ *   (v1*w1 + v2*w2 + v3*w3 + v4*w4 + v5*w5)
  *     * (0.8 + 0.01*lastSeasonPos*wLast + 0.01*thisSeasonPos*wThis)
  */
 export function rawFdrScore(
   values: readonly number[],
   lastSeasonPosition: number,
   thisSeasonPosition: number,
-  weights: FdrWeights,
+  formula: FdrFormula,
 ): number {
-  const fixtureLoad = sum(values.map((v, i) => v * (FDR_GAMEWEEK_WEIGHTS[i] ?? 0)));
+  const fixtureLoad = sum(values.map((v, i) => v * (formula.gameweekWeights[i] ?? 0)));
   const strengthMultiplier =
     FDR_BASE_MULTIPLIER +
-    FDR_POSITION_COEFFICIENT * lastSeasonPosition * weights.lastSeason +
-    FDR_POSITION_COEFFICIENT * thisSeasonPosition * weights.thisSeason;
+    FDR_POSITION_COEFFICIENT * lastSeasonPosition * formula.positionWeights.lastSeason +
+    FDR_POSITION_COEFFICIENT * thisSeasonPosition * formula.positionWeights.thisSeason;
   return fixtureLoad * strengthMultiplier;
 }
 
@@ -81,10 +114,10 @@ export function fdrScore(
   values: readonly number[],
   lastSeasonPosition: number,
   thisSeasonPosition: number,
-  weights: FdrWeights,
+  formula: FdrFormula,
 ): number {
   return roundHalfAwayFromZero(
-    rawFdrScore(values, lastSeasonPosition, thisSeasonPosition, weights),
+    rawFdrScore(values, lastSeasonPosition, thisSeasonPosition, formula),
     1,
   );
 }
@@ -135,7 +168,7 @@ export interface BuildFdrTableInput {
   lastSeasonPositions: Readonly<Record<number, number>>;
   /** Used when a team code has no last-season entry (promoted teams). */
   defaultLastSeasonPosition: number;
-  weights: FdrWeights;
+  formula: FdrFormula;
 }
 
 /** Builds the FDR table sorted easiest-first (lowest AVG), with Excel-style ranks. */
@@ -146,7 +179,7 @@ export function buildFdrTable(input: BuildFdrTableInput): FdrRow[] {
     const thisSeasonPosition = input.thisSeasonPositions.get(team.id) ?? input.teams.length;
     const cells = buildFdrCells(team.id, input.gameweekIds, input.fixtures);
     const values = cells.map((c) => c.value);
-    const rawScore = rawFdrScore(values, lastSeasonPosition, thisSeasonPosition, input.weights);
+    const rawScore = rawFdrScore(values, lastSeasonPosition, thisSeasonPosition, input.formula);
     return {
       team,
       lastSeasonPosition,

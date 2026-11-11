@@ -18,9 +18,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "functions:build": "npm --prefix functions run build",
-    "emulators": "firebase emulators:start",
-    "deploy": "npm run check && npm run build && firebase deploy"
+    "emulators": "firebase emulators:start --only auth,firestore",
+    "deploy": "npm run check && vercel deploy --prod",
+    "deploy:rules": "firebase deploy --only firestore"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",

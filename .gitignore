@@ -1,10 +1,8 @@
 # dependencies
 node_modules/
-functions/node_modules/
 
 # builds
 dist/
-functions/lib/
 coverage/
 *.tsbuildinfo
 
@@ -15,6 +13,7 @@ coverage/
 
 # firebase
 .firebase/
+.vercel/
 .firebaserc
 firebase-debug.log*
 firestore-debug.log*

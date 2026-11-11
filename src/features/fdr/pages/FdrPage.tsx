@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { FDR_GAMEWEEK_WEIGHTS, FDR_WINDOW_SIZE } from '@/config/fdr';
+import { FDR_BLANK_GAMEWEEK_VALUE, FDR_WINDOW_SIZE } from '@/config/fdr';
 import { useAuth } from '@/features/auth';
 import { Button, ErrorState, LoadingState, PageHeader } from '@/components/ui';
-import { formatPercent } from '@/utils/format';
+import { formatDateTime, formatPercent } from '@/utils/format';
 import { FdrSettingsPanel } from '../components/FdrSettingsPanel';
 import { FdrTable } from '../components/FdrTable';
 import { useFdrTable } from '../hooks/useFdrTable';
@@ -22,12 +22,13 @@ export function FdrPage() {
   const lastStart = Math.max(1, fdr.totalGameweeks - FDR_WINDOW_SIZE + 1);
   const first = fdr.gameweekIds[0];
   const last = fdr.gameweekIds[fdr.gameweekIds.length - 1];
+  const { gameweekWeights, positionWeights } = fdr.formula;
 
   return (
     <>
       <PageHeader
         title="Fixture difficulty"
-        description={`Teams ranked by weighted difficulty of their next ${FDR_WINDOW_SIZE} gameweeks, adjusted for team strength. Lower AVG = easier run.`}
+        description={`Teams ranked by weighted difficulty of their next ${FDR_WINDOW_SIZE} gameweeks, adjusted for team strength. Lower AVG = easier run. Click a column header to sort.`}
         actions={
           isAdmin &&
           !editing && (
@@ -95,9 +96,10 @@ export function FdrPage() {
               )}
             </div>
             <p className="text-sm text-slate-500">
-              Weights: last season ({fdr.settings.lastSeasonLabel}){' '}
-              <strong>{formatPercent(fdr.weights.lastSeason)}</strong> · this season{' '}
-              <strong>{formatPercent(fdr.weights.thisSeason)}</strong>
+              GW weights <strong>{gameweekWeights.join(' · ')}</strong> · last season (
+              {fdr.settings.lastSeasonLabel}){' '}
+              <strong>{formatPercent(positionWeights.lastSeason)}</strong> · this season{' '}
+              <strong>{formatPercent(positionWeights.thisSeason)}</strong>
             </p>
           </div>
 
@@ -107,9 +109,37 @@ export function FdrPage() {
             teamsById={fdr.teamsById}
             leagueTable={fdr.leagueTable}
             lastSeasonLabel={fdr.settings.lastSeasonLabel}
+            positionSource={fdr.positionSource}
           />
 
-          <FdrLegend />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <FdrLegend />
+            <div className="space-y-0.5 text-right text-xs text-slate-500">
+              <p className="flex items-center justify-end gap-2">
+                <span>
+                  FPL data updated{' '}
+                  <strong className="text-slate-700">
+                    {fdr.dataUpdatedAt ? formatDateTime(fdr.dataUpdatedAt.toISOString()) : '–'}
+                  </strong>
+                </span>
+                <Button size="sm" variant="ghost" loading={fdr.isFetching} onClick={fdr.refetch}>
+                  Refresh
+                </Button>
+              </p>
+              <p>
+                This-season positions:{' '}
+                {fdr.positionSource === 'official'
+                  ? 'official table from FPL'
+                  : 'calculated from results (FPL table unavailable)'}
+              </p>
+              {fdr.settings.updatedAt && (
+                <p>
+                  Formula settings changed {formatDateTime(fdr.settings.updatedAt.toISOString())}
+                  {isAdmin && fdr.settings.updatedBy ? ` by ${fdr.settings.updatedBy}` : ''}
+                </p>
+              )}
+            </div>
+          </div>
 
           <details className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
             <summary className="cursor-pointer font-medium text-slate-800">
@@ -117,18 +147,25 @@ export function FdrPage() {
             </summary>
             <div className="mt-3 space-y-2">
               <p>
-                For GW{first}–{last}, each fixture’s official FPL difficulty is weighted (nearest
-                first): {FDR_GAMEWEEK_WEIGHTS.join(', ')}. The sum is multiplied by a team-strength
-                factor and rounded to one decimal:
+                For GW{first}–{last}, each gameweek’s FDR (official FPL difficulty) is weighted,
+                nearest first, by {gameweekWeights.join(', ')} (always summing to 10). The sum is
+                multiplied by a team-strength factor and rounded to one decimal:
               </p>
               <pre className="overflow-x-auto rounded bg-slate-100 p-3 text-xs">
-                {`AVG = ROUND( (${FDR_GAMEWEEK_WEIGHTS.map((w, i) => `FDR${i + 1}×${w.toFixed(1)}`).join(' + ')})
-        × (0.8 + 0.01×LastSeasonPos×${fdr.weights.lastSeason} + 0.01×ThisSeasonPos×${fdr.weights.thisSeason}), 1 )`}
+                {`AVG = ROUND( (${gameweekWeights.map((w, i) => `FDR${i + 1}×${w}`).join(' + ')})
+        × (0.8 + 0.01×LastSeasonPos×${positionWeights.lastSeason} + 0.01×ThisSeasonPos×${positionWeights.thisSeason}), 1 )`}
               </pre>
-              <p>
-                “This season” is the live league table built from finished matches. A double
-                gameweek uses the average difficulty of its fixtures; a blank gameweek counts as 5.
-              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  Double gameweek: FDR = 1 ÷ (1/M1 + 1/M2), where M1 and M2 are the two fixtures’
+                  difficulties (e.g. 2 and 3 → 1.2).
+                </li>
+                <li>Blank gameweek: FDR = {FDR_BLANK_GAMEWEEK_VALUE}.</li>
+                <li>
+                  “This season” is the official current table published by FPL (falls back to a
+                  table calculated from finished matches if FPL’s is unavailable).
+                </li>
+              </ul>
             </div>
           </details>
         </div>
@@ -143,7 +180,7 @@ function FdrLegend() {
     { label: '3 Medium', className: 'bg-fdr-3' },
     { label: '4 Hard', className: 'bg-fdr-4' },
     { label: '5 Very hard', className: 'bg-fdr-5' },
-    { label: 'Blank GW', className: 'bg-fdr-blank' },
+    { label: `Blank GW (${FDR_BLANK_GAMEWEEK_VALUE})`, className: 'bg-fdr-blank' },
   ];
   return (
     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">

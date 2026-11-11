@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { MonthKey, Participant } from '@/domain/league';
 import { firestore, requireFirestore } from '@/lib/firebase/client';
-import { parseMonthDoc, type MonthDoc, type MonthSnapshot } from '../model';
+import { cleanPenaltyFree, parseMonthDoc, type MonthDoc, type MonthSnapshot } from '../model';
 
 const MONTHS = 'months';
 
@@ -24,11 +24,26 @@ interface WriteMonthInput {
   monthKey: MonthKey;
   leagueId: number;
   participants: readonly Participant[];
+  penaltyFree: Readonly<Record<number, number>>;
   snapshot: MonthSnapshot | null;
   adminEmail: string;
 }
 
-function writeMonth({ monthKey, leagueId, participants, snapshot, adminEmail }: WriteMonthInput) {
+function writeMonth({
+  monthKey,
+  leagueId,
+  participants,
+  penaltyFree,
+  snapshot,
+  adminEmail,
+}: WriteMonthInput) {
+  // Firestore map keys are strings; entry ids are converted back to numbers when parsed.
+  const allowances = Object.fromEntries(
+    Object.entries(cleanPenaltyFree(penaltyFree, participants)).map(([id, pts]) => [
+      String(id),
+      pts,
+    ]),
+  );
   return setDoc(doc(requireFirestore(), MONTHS, monthKey), {
     monthKey,
     leagueId,
@@ -37,6 +52,7 @@ function writeMonth({ monthKey, leagueId, participants, snapshot, adminEmail }: 
       playerName: p.playerName,
       entryName: p.entryName,
     })),
+    penaltyFree: allowances,
     status: snapshot ? 'finalized' : 'open',
     // JSON round-trip strips `undefined`, which Firestore rejects.
     snapshot: snapshot ? (JSON.parse(JSON.stringify(snapshot)) as MonthSnapshot) : null,
@@ -54,6 +70,7 @@ export function finalizeMonth(month: MonthDoc, snapshot: MonthSnapshot, adminEma
     monthKey: month.monthKey,
     leagueId: month.leagueId,
     participants: month.participants,
+    penaltyFree: month.penaltyFree,
     snapshot,
     adminEmail,
   });
@@ -64,6 +81,7 @@ export function reopenMonth(month: MonthDoc, adminEmail: string) {
     monthKey: month.monthKey,
     leagueId: month.leagueId,
     participants: month.participants,
+    penaltyFree: month.penaltyFree,
     snapshot: null,
     adminEmail,
   });

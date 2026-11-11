@@ -10,20 +10,32 @@ export interface MonthStandingsInput {
   /** Scores per entry id. Missing gameweeks (e.g. team created later) count as 0 points. */
   scores: Readonly<Record<number, readonly GameweekScore[]>>;
   rules: PrizeRules;
+  /**
+   * Penalty-free transfer-hit allowance (points) per entry id, applied to the month's FIRST
+   * gameweek only. Missing entries get 0.
+   */
+  penaltyFree?: Readonly<Record<number, number>>;
 }
 
 export interface GameweekCell {
   /** Null when the gameweek has not started, or the manager has no score for it. */
   score: GameweekScore | null;
-  /** Points after transfer hits; null when the gameweek has not started. */
+  /** Points after (adjusted) transfer hits; null when the gameweek has not started. */
   net: number | null;
+  /** Transfer hit actually deducted, after any penalty-free allowance. */
+  transferCost: number;
+  /** Part of FPL's transfer hit waived by the penalty-free allowance. */
+  waivedCost: number;
   position: number | null;
   tieSize: number;
   prize: number;
 }
 
 export interface MonthTotals extends RankingScore {
+  /** Transfer hits deducted this month (after allowances). */
   transferCost: number;
+  /** Transfer hits waived this month by the penalty-free allowance. */
+  waivedCost: number;
   position: number | null;
   tieSize: number;
   prize: number;
@@ -47,14 +59,20 @@ export interface MonthStandings {
   prizes: PrizeStructure;
   columns: GameweekColumn[];
   monthState: ResultState;
+  /** The gameweek the penalty-free allowance applies to (the month's first), if any. */
+  penaltyFreeGameweek: number | null;
   /** Sorted by month position (then name). */
   rows: ParticipantMonthRow[];
   /** Sum of all prizes awarded so far (pending gameweeks award nothing). */
   totalAwarded: number;
 }
 
-export function netPoints(score: GameweekScore): number {
-  return score.points - score.transferCost;
+/**
+ * Transfer hit after the penalty-free allowance: max(0, cost − allowance).
+ * e.g. allowance 8: a −4 hit becomes 0, a −16 hit becomes −8.
+ */
+export function effectiveTransferCost(transferCost: number, allowance: number): number {
+  return Math.max(0, transferCost - Math.max(0, allowance));
 }
 
 export function gameweekResultState(gameweek: Gameweek): ResultState {
@@ -73,6 +91,15 @@ function emptyScore(gameweek: number): GameweekScore {
   return { gameweek, points: 0, transferCost: 0, benchPoints: 0, chip: null };
 }
 
+const PENDING_CELL: Omit<GameweekCell, 'score'> = {
+  net: null,
+  transferCost: 0,
+  waivedCost: 0,
+  position: null,
+  tieSize: 1,
+  prize: 0,
+};
+
 /**
  * Computes the full month table: per-gameweek rankings and prizes, the month ranking and prize,
  * and each participant's total winnings. Pure function — safe to call on every render.
@@ -82,60 +109,68 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
   const prizes = buildPrizeStructure(input.participants.length, gameweeks.length, input.rules);
   const columns = gameweeks.map((gameweek) => ({ gameweek, state: gameweekResultState(gameweek) }));
   const monthState = combineResultStates(columns.map((c) => c.state));
+  const penaltyFreeGameweek = gameweeks[0]?.id ?? null;
   const byName = (a: Participant, b: Participant) => a.playerName.localeCompare(b.playerName);
 
-  const rows = new Map<number, ParticipantMonthRow>();
-  for (const participant of input.participants) {
+  const rows: ParticipantMonthRow[] = input.participants.map((participant) => {
     const scoreByGw = new Map(
       (input.scores[participant.entryId] ?? []).map((s) => [s.gameweek, s] as const),
     );
+    const allowance = input.penaltyFree?.[participant.entryId] ?? 0;
     const cells: Record<number, GameweekCell> = {};
-    const started: GameweekScore[] = [];
+    const started: Array<{ score: GameweekScore; cell: GameweekCell }> = [];
+
     for (const { gameweek, state } of columns) {
       if (state === 'pending') {
-        cells[gameweek.id] = { score: null, net: null, position: null, tieSize: 1, prize: 0 };
+        cells[gameweek.id] = { score: null, ...PENDING_CELL };
         continue;
       }
       const recorded = scoreByGw.get(gameweek.id) ?? null;
       const score = recorded ?? emptyScore(gameweek.id);
-      started.push(score);
-      cells[gameweek.id] = {
+      const transferCost = effectiveTransferCost(
+        score.transferCost,
+        gameweek.id === penaltyFreeGameweek ? allowance : 0,
+      );
+      const cell: GameweekCell = {
         score: recorded,
-        net: netPoints(score),
+        net: score.points - transferCost,
+        transferCost,
+        waivedCost: score.transferCost - transferCost,
         position: null,
         tieSize: 1,
         prize: 0,
       };
+      cells[gameweek.id] = cell;
+      started.push({ score, cell });
     }
-    rows.set(participant.entryId, {
+
+    return {
       participant,
       gameweeks: cells,
       month: {
-        points: sum(started.map(netPoints)),
-        chipsUsed: started.filter((s) => s.chip !== null).length,
-        benchPoints: sum(started.map((s) => s.benchPoints)),
-        transferCost: sum(started.map((s) => s.transferCost)),
+        points: sum(started.map(({ cell }) => cell.net ?? 0)),
+        chipsUsed: started.filter(({ score }) => score.chip !== null).length,
+        benchPoints: sum(started.map(({ score }) => score.benchPoints)),
+        transferCost: sum(started.map(({ cell }) => cell.transferCost)),
+        waivedCost: sum(started.map(({ cell }) => cell.waivedCost)),
         position: null,
         tieSize: 1,
         prize: 0,
       },
       totalPrize: 0,
-    });
-  }
-
-  const allRows = [...rows.values()];
+    };
+  });
 
   for (const { gameweek, state } of columns) {
     if (state === 'pending') continue;
     const ranked = rankWithPrizes(
-      allRows,
+      rows,
       (row): RankingScore => {
         const cell = row.gameweeks[gameweek.id];
-        const score = cell?.score ?? emptyScore(gameweek.id);
         return {
-          points: netPoints(score),
-          chipsUsed: score.chip ? 1 : 0,
-          benchPoints: score.benchPoints,
+          points: cell?.net ?? 0,
+          chipsUsed: cell?.score?.chip ? 1 : 0,
+          benchPoints: cell?.score?.benchPoints ?? 0,
         };
       },
       prizes.gameweekPrizes,
@@ -147,10 +182,10 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
     }
   }
 
-  let sortedRows = [...allRows].sort((a, b) => byName(a.participant, b.participant));
+  let sortedRows = [...rows].sort((a, b) => byName(a.participant, b.participant));
   if (monthState !== 'pending') {
     const ranked = rankWithPrizes(
-      allRows,
+      rows,
       (row) => row.month,
       prizes.monthPrizes,
       (a, b) => byName(a.participant, b.participant),
@@ -169,6 +204,7 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
     prizes,
     columns,
     monthState,
+    penaltyFreeGameweek,
     rows: sortedRows,
     totalAwarded: sum(sortedRows.map((r) => r.totalPrize)),
   };

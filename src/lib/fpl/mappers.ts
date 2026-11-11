@@ -33,7 +33,13 @@ export function mapGameweeks(events: readonly FplEvent[], now = Date.now()): Gam
 
 export function mapTeams(teams: readonly FplTeam[]): Team[] {
   return teams
-    .map((t) => ({ id: t.id, code: t.code, name: t.name, shortName: t.short_name }))
+    .map((t) => ({
+      id: t.id,
+      code: t.code,
+      name: t.name,
+      shortName: t.short_name,
+      officialPosition: typeof t.position === 'number' && t.position > 0 ? t.position : null,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

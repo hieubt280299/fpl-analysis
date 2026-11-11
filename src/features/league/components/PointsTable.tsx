@@ -19,13 +19,36 @@ function cellTitle(cell: GameweekCell): string | undefined {
   const parts = [`Position ${positionLabel(cell.position, cell.tieSize)}`];
   if (cell.score) {
     parts.push(`Gross ${cell.score.points}`);
-    if (cell.score.transferCost) parts.push(`Hit −${cell.score.transferCost}`);
+    if (cell.waivedCost > 0) {
+      parts.push(
+        `Hit −${cell.score.transferCost}, ${cell.waivedCost} penalty-free → −${cell.transferCost}`,
+      );
+    } else if (cell.transferCost) {
+      parts.push(`Hit −${cell.transferCost}`);
+    }
     parts.push(`Bench ${cell.score.benchPoints}`);
     if (cell.score.chip) parts.push(`Chip: ${chipLabel(cell.score.chip).long}`);
   } else {
     parts.push('No FPL score recorded');
   }
   return parts.join(' · ');
+}
+
+/** "−4 hit", or "~~−16~~ −8 hit" when part of the hit was waived by the penalty-free allowance. */
+function HitNote({ charged, waived }: { charged: number; waived: number }) {
+  if (charged <= 0 && waived <= 0) return null;
+  return (
+    <div className="text-[11px] leading-none">
+      {waived > 0 && (
+        <span className="mr-1 text-slate-400 line-through" title="Penalty-free allowance">
+          −{charged + waived}
+        </span>
+      )}
+      <span className={charged > 0 ? 'text-red-600' : 'text-emerald-700'}>
+        {charged > 0 ? `−${charged} hit` : 'hit waived'}
+      </span>
+    </div>
+  );
 }
 
 function ScoreCell({ cell }: { cell: GameweekCell | undefined }) {
@@ -42,21 +65,37 @@ function ScoreCell({ cell }: { cell: GameweekCell | undefined }) {
         )}
         <span>{cell.net}</span>
       </div>
-      {cell.score && cell.score.transferCost > 0 && (
-        <div className="text-[11px] leading-none text-red-600">−{cell.score.transferCost} hit</div>
-      )}
+      <HitNote charged={cell.transferCost} waived={cell.waivedCost} />
     </td>
   );
 }
 
 /** The "Points" table: net GW points per participant, ranked by month total. */
-export function PointsTable({ standings }: { standings: MonthStandings }) {
-  const { columns, rows, monthState } = standings;
+export function PointsTable({
+  standings,
+  penaltyFree,
+}: {
+  standings: MonthStandings;
+  penaltyFree: Readonly<Record<number, number>>;
+}) {
+  const { columns, rows, monthState, penaltyFreeGameweek } = standings;
+  const allowances = rows
+    .filter((r) => (penaltyFree[r.participant.entryId] ?? 0) > 0)
+    .map((r) => `${r.participant.playerName} ${penaltyFree[r.participant.entryId]}`);
 
   return (
     <Card
       title="Points"
-      description="Net points after transfer hits. Green = winner, light green = runner-up."
+      description={
+        <>
+          Net points after transfer hits. Green = winner, light green = runner-up.
+          {allowances.length > 0 && penaltyFreeGameweek && (
+            <span className="mt-0.5 block text-emerald-700">
+              Penalty-free points in GW{penaltyFreeGameweek}: {allowances.join(', ')}.
+            </span>
+          )}
+        </>
+      }
       flush
     >
       <div className="overflow-x-auto">
@@ -110,11 +149,7 @@ export function PointsTable({ standings }: { standings: MonthStandings }) {
                   ) : (
                     <>
                       {row.month.points}
-                      {row.month.transferCost > 0 && (
-                        <div className="text-[11px] leading-none text-red-600">
-                          −{row.month.transferCost} hits
-                        </div>
-                      )}
+                      <HitNote charged={row.month.transferCost} waived={row.month.waivedCost} />
                     </>
                   )}
                 </td>

@@ -24,8 +24,24 @@ describe('parseMonthDoc', () => {
       leagueId: 758527,
       participants: [{ entryId: 130307, playerName: 'Hieu Bui', entryName: 'Lukas FC' }],
       snapshot: null,
+      penaltyFree: {},
     });
     expect(doc?.updatedAt?.toISOString()).toBe('2026-11-10T00:00:00.000Z');
+  });
+
+  it('parses penalty-free allowances, keeping only valid ones for current participants', () => {
+    const doc = parseMonthDoc('2026-11', {
+      leagueId: 1,
+      participants: [
+        { entryId: 1, playerName: 'A', entryName: 'a' },
+        { entryId: 2, playerName: 'B', entryName: 'b' },
+        { entryId: 3, playerName: 'C', entryName: 'c' },
+      ],
+      penaltyFree: { '1': 8, '2': 0, '3': -4, '99': 8, x: 4 },
+      status: 'open',
+      snapshot: null,
+    });
+    expect(doc?.penaltyFree).toEqual({ 1: 8 });
   });
 
   it('parses a finalized snapshot with string-keyed scores', () => {

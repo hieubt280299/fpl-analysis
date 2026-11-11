@@ -13,10 +13,41 @@ export interface LeagueTableRow {
   points: number;
 }
 
+export type PositionSource = 'official' | 'calculated';
+
+/**
+ * This season's positions for the FDR table.
+ * Prefers the official table published by FPL (`teams[].position`, which applies the PL's full
+ * tie-breakers). Falls back to the table calculated from results when FPL's positions are missing
+ * or inconsistent (e.g. all 0, or not exactly 1..N).
+ */
+export function resolveThisSeasonPositions(
+  teams: readonly Team[],
+  calculated: readonly LeagueTableRow[],
+): { positions: Map<number, number>; source: PositionSource } {
+  const official = teams.map((t) => t.officialPosition ?? 0);
+  const expected = new Set(teams.map((_, i) => i + 1));
+  const isValid =
+    teams.length > 0 &&
+    official.every((p) => expected.has(p)) &&
+    new Set(official).size === teams.length;
+
+  if (isValid) {
+    return {
+      positions: new Map(teams.map((t) => [t.id, t.officialPosition as number])),
+      source: 'official',
+    };
+  }
+  return {
+    positions: new Map(calculated.map((r) => [r.team.id, r.position])),
+    source: 'calculated',
+  };
+}
+
 /**
  * Builds the current Premier League table from finished fixtures.
  * Ordering: points, goal difference, goals scored, then team name. (The PL's further
- * tie-breakers — head-to-head etc. — almost never matter for FDR purposes and are not modelled.)
+ * tie-breakers — head-to-head etc. — are not modelled; prefer the official FPL positions.)
  */
 export function computeLeagueTable(
   teams: readonly Team[],

@@ -1,6 +1,9 @@
-/** Tailwind classes for a fixture-difficulty value (1 easiest … 5 hardest; doubles may be x.5). */
+/**
+ * Tailwind classes for a fixture-difficulty value: 1 easiest … 5 hardest, blank GW = 6 (worst).
+ * Double GWs produce fractional values (e.g. 1.2), coloured by the nearest whole number.
+ */
 export function fdrCellClass(value: number, isBlank: boolean): string {
-  if (isBlank) return 'bg-fdr-blank text-slate-700';
+  if (isBlank) return 'bg-fdr-blank text-white';
   const rounded = Math.round(value);
   if (rounded <= 1) return 'bg-fdr-1 text-white';
   if (rounded === 2) return 'bg-fdr-2 text-slate-900';

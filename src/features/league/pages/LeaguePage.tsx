@@ -127,6 +127,8 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
             monthKey={monthKey}
             leagueId={view.leagueId}
             current={participants}
+            currentPenaltyFree={view.monthDoc?.penaltyFree ?? {}}
+            penaltyFreeGameweek={gameweeks[0]?.id ?? null}
             previousMonthKey={previousMonthKey}
             onDone={() => setEditing(false)}
           />
@@ -136,7 +138,7 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
           <Alert tone="success" title="Finalized">
             Results were frozen on{' '}
             {formatDateTime(view.monthDoc.snapshot.finalizedAt, view.timeZone)}
-            {view.monthDoc.updatedBy ? ` by ${view.monthDoc.updatedBy}` : ''}.
+            {isAdmin && view.monthDoc.updatedBy ? ` by ${view.monthDoc.updatedBy}` : ''}.
           </Alert>
         )}
 
@@ -217,7 +219,7 @@ function ScoresSection({ view }: { view: ReturnType<typeof useMonthView> }) {
           </Button>
         </div>
       )}
-      <PointsTable standings={standings} />
+      <PointsTable standings={standings} penaltyFree={view.monthDoc?.penaltyFree ?? {}} />
       <PrizesTable standings={standings} />
     </>
   );

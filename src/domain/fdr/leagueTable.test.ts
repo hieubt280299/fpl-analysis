@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLeagueTable } from './leagueTable';
+import { computeLeagueTable, resolveThisSeasonPositions } from './leagueTable';
 import type { Fixture, Team } from './types';
 
 const teams: Team[] = [
@@ -54,5 +54,33 @@ describe('computeLeagueTable', () => {
     const table = computeLeagueTable([...teams].reverse(), []);
     expect(table.map((r) => r.team.shortName)).toEqual(['ARS', 'AVL', 'BOU', 'BRE']);
     expect(table.every((r) => r.played === 0)).toBe(true);
+  });
+});
+
+describe('resolveThisSeasonPositions', () => {
+  const calculated = computeLeagueTable(teams, [result(2, 1, 1, 0)]); // AVL top
+  const withOfficial = (positions: Array<number | null>) =>
+    teams.map((t, i) => ({ ...t, officialPosition: positions[i] }));
+
+  it('uses the official FPL positions when they are a complete 1..N ranking', () => {
+    const { positions, source } = resolveThisSeasonPositions(
+      withOfficial([2, 1, 4, 3]),
+      calculated,
+    );
+    expect(source).toBe('official');
+    expect(positions.get(4)).toBe(3);
+  });
+
+  it('falls back to the calculated table when FPL positions are missing or inconsistent', () => {
+    for (const bad of [
+      [0, 0, 0, 0],
+      [1, 1, 2, 3],
+      [1, 2, 3, null],
+      [1, 2, 3, 5],
+    ]) {
+      const { positions, source } = resolveThisSeasonPositions(withOfficial(bad), calculated);
+      expect(source).toBe('calculated');
+      expect(positions.get(2)).toBe(1);
+    }
   });
 });

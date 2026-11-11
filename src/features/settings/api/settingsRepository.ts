@@ -5,8 +5,10 @@ import {
   DEFAULT_LEAGUE,
   parseFdrSettings,
   parseLeagueSettings,
+  parseUpdateMeta,
   type FdrSettings,
   type LeagueSettings,
+  type StoredFdrSettings,
 } from '../model';
 
 const SETTINGS = 'settings';
@@ -29,10 +31,11 @@ export async function saveLeagueSettings(
   });
 }
 
-export async function fetchFdrSettings(): Promise<FdrSettings> {
-  if (!firestore) return DEFAULT_FDR;
+export async function fetchFdrSettings(): Promise<StoredFdrSettings> {
+  if (!firestore) return { ...DEFAULT_FDR, updatedAt: null, updatedBy: null };
   const snapshot = await getDoc(doc(firestore, SETTINGS, 'fdr'));
-  return parseFdrSettings(snapshot.data());
+  const data = snapshot.data();
+  return { ...parseFdrSettings(data), ...parseUpdateMeta(data) };
 }
 
 export async function saveFdrSettings(settings: FdrSettings, adminEmail: string): Promise<void> {
@@ -41,6 +44,7 @@ export async function saveFdrSettings(settings: FdrSettings, adminEmail: string)
     Object.entries(settings.lastSeasonPositions).map(([code, pos]) => [String(code), pos]),
   );
   await setDoc(doc(requireFirestore(), SETTINGS, 'fdr'), {
+    gameweekWeights: settings.gameweekWeights,
     lastSeasonWeight: settings.lastSeasonWeight,
     lastSeasonLabel: settings.lastSeasonLabel.trim(),
     lastSeasonPositions: positions,

@@ -42,8 +42,12 @@ export function useSaveParticipants() {
   const adminEmail = useAdminEmail();
   const invalidate = useInvalidateMonths();
   return useMutation({
-    mutationFn: (input: { monthKey: MonthKey; leagueId: number; participants: Participant[] }) =>
-      saveParticipants({ ...input, adminEmail: adminEmail() }),
+    mutationFn: (input: {
+      monthKey: MonthKey;
+      leagueId: number;
+      participants: Participant[];
+      penaltyFree: Record<number, number>;
+    }) => saveParticipants({ ...input, adminEmail: adminEmail() }),
     onSuccess: invalidate,
   });
 }

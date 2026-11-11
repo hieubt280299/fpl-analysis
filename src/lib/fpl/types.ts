@@ -19,6 +19,8 @@ export interface FplTeam {
   code: number;
   name: string;
   short_name: string;
+  /** Official current league position (may be 0 when FPL has not populated it). */
+  position: number;
 }
 
 /** GET /bootstrap-static/ */

@@ -26,6 +26,10 @@ export function RulesNote() {
           chips used, then most bench points.
         </li>
         <li>
+          Admins may give selected players penalty-free points for the month’s first gameweek only:
+          hits up to that amount are waived (with 8 free points, −4 becomes 0 and −16 becomes −8).
+        </li>
+        <li>
           Players still level after both tie-breakers share the prizes of the places they occupy
           equally (e.g. three tied for 1st each get (winner + runner-up) ÷ 3).
         </li>

@@ -6,7 +6,7 @@ import {
   saveFdrSettings,
   saveLeagueSettings,
 } from '../api/settingsRepository';
-import type { FdrSettings, LeagueSettings } from '../model';
+import type { FdrSettings, LeagueSettings, StoredFdrSettings } from '../model';
 
 export const settingsKeys = {
   league: ['settings', 'league'] as const,
@@ -48,7 +48,12 @@ export function useSaveFdrSettings() {
   return useMutation({
     mutationFn: (settings: FdrSettings) => saveFdrSettings(settings, adminEmail()),
     onSuccess: (_result, settings) => {
-      queryClient.setQueryData(settingsKeys.fdr, settings);
+      const stored: StoredFdrSettings = {
+        ...settings,
+        updatedAt: new Date(),
+        updatedBy: adminEmail(),
+      };
+      queryClient.setQueryData(settingsKeys.fdr, stored);
     },
   });
 }

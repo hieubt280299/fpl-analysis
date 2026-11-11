@@ -1,36 +1,46 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type ProxyOptions } from 'vite';
+import { defineConfig, type Connect, type Plugin } from 'vite';
+import { handleFplRequest } from './api/fpl';
 
 /**
- * The browser cannot call the FPL API directly (no CORS headers), so every FPL
- * request goes through `/api/fpl/*`:
- *  - in dev / preview: this Vite proxy forwards to fantasy.premierleague.com
- *  - in production: Firebase Hosting rewrites to the `fplProxy` Cloud Function
- * Keep both paths in sync (see functions/src/index.ts).
+ * The browser cannot call the FPL API directly (no CORS headers), so the app calls
+ * `/api/fpl?path=…`. In production that is the Vercel Function in api/fpl.ts; in dev/preview this
+ * plugin runs the very same handler, so allow-list and behaviour are identical.
  */
-const fplProxy: Record<string, ProxyOptions> = {
-  '/api/fpl': {
-    target: 'https://fantasy.premierleague.com',
-    changeOrigin: true,
-    rewrite: (path) => path.replace(/^\/api\/fpl/, '/api'),
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; fpl-analysis/1.0)',
-      Accept: 'application/json',
+function fplApiPlugin(): Plugin {
+  const middleware: Connect.NextHandleFunction = (req, res, next) => {
+    if (!req.url || !/^\/api\/fpl(?:[/?]|$)/.test(req.url)) {
+      next();
+      return;
+    }
+    handleFplRequest(new Request(new URL(req.url, 'http://localhost'), { method: req.method }))
+      .then(async (response) => {
+        res.statusCode = response.status;
+        response.headers.forEach((value, key) => res.setHeader(key, value));
+        res.end(Buffer.from(await response.arrayBuffer()));
+      })
+      .catch(next);
+  };
+  return {
+    name: 'fpl-api',
+    configureServer: (server) => {
+      server.middlewares.use(middleware);
     },
-  },
-};
+    configurePreviewServer: (server) => {
+      server.middlewares.use(middleware);
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), fplApiPlugin()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  server: { proxy: fplProxy },
-  preview: { proxy: fplProxy },
   build: {
     sourcemap: true,
     // The Firebase Auth + Firestore SDK chunk is ~670 kB minified (~170 kB gzip) on its own.
@@ -47,6 +57,6 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'api/**/*.test.ts'],
   },
 });

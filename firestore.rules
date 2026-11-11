@@ -32,8 +32,17 @@ service cloud.firestore {
         && isStamped(d);
     }
 
+    // Five non-negative gameweek weights that add up to 10.
+    function isValidGameweekWeights(w) {
+      return w is list && w.size() == 5
+        && w[0] is number && w[1] is number && w[2] is number && w[3] is number && w[4] is number
+        && w[0] >= 0 && w[1] >= 0 && w[2] >= 0 && w[3] >= 0 && w[4] >= 0
+        && math.abs(w[0] + w[1] + w[2] + w[3] + w[4] - 10) < 0.001;
+    }
+
     function isValidFdrSettings(d) {
-      return d.keys().hasOnly(['lastSeasonWeight', 'lastSeasonLabel', 'lastSeasonPositions', 'updatedAt', 'updatedBy'])
+      return d.keys().hasOnly(['gameweekWeights', 'lastSeasonWeight', 'lastSeasonLabel', 'lastSeasonPositions', 'updatedAt', 'updatedBy'])
+        && isValidGameweekWeights(d.gameweekWeights)
         && d.lastSeasonWeight is number && d.lastSeasonWeight >= 0 && d.lastSeasonWeight <= 1
         && d.lastSeasonLabel is string && d.lastSeasonLabel.size() <= 20
         && d.lastSeasonPositions is map && d.lastSeasonPositions.size() <= 40
@@ -41,10 +50,11 @@ service cloud.firestore {
     }
 
     function isValidMonth(d, monthKey) {
-      return d.keys().hasOnly(['monthKey', 'leagueId', 'participants', 'status', 'snapshot', 'updatedAt', 'updatedBy'])
+      return d.keys().hasOnly(['monthKey', 'leagueId', 'participants', 'penaltyFree', 'status', 'snapshot', 'updatedAt', 'updatedBy'])
         && d.monthKey == monthKey
         && d.leagueId is int && d.leagueId > 0
         && d.participants is list && d.participants.size() <= 100
+        && (!('penaltyFree' in d) || (d.penaltyFree is map && d.penaltyFree.size() <= 100))
         && d.status in ['open', 'finalized']
         && ((d.status == 'open' && d.snapshot == null) || (d.status == 'finalized' && d.snapshot is map))
         && isStamped(d);

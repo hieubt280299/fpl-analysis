@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LEAGUE_RULES } from '@/config/league';
-import { computeMonthStandings } from './monthStandings';
+import { computeMonthStandings, effectiveTransferCost } from './monthStandings';
 import type { Gameweek, GameweekScore, Participant } from './types';
 
 const participants: Participant[] = [
@@ -102,5 +102,59 @@ describe('computeMonthStandings', () => {
     expect(standings.monthState).toBe('pending');
     expect(standings.totalAwarded).toBe(0);
     expect(standings.rows.every((r) => r.month.position === null)).toBe(true);
+  });
+});
+
+describe('effectiveTransferCost', () => {
+  it('waives hits up to the allowance (the examples from the spec)', () => {
+    expect(effectiveTransferCost(4, 8)).toBe(0);
+    expect(effectiveTransferCost(16, 8)).toBe(8);
+    expect(effectiveTransferCost(8, 8)).toBe(0);
+    expect(effectiveTransferCost(12, 0)).toBe(12);
+    expect(effectiveTransferCost(4, -4)).toBe(4);
+  });
+});
+
+describe('penalty-free allowance', () => {
+  const run = (penaltyFree: Record<number, number>) =>
+    computeMonthStandings({
+      gameweeks: [gw(11, 'finished'), gw(10, 'finished')], // order must not matter
+      participants: participants.slice(0, 2),
+      scores: {
+        1: [score(10, 60, { transferCost: 16 }), score(11, 50, { transferCost: 8 })],
+        2: [score(10, 50, { transferCost: 4 }), score(11, 50)],
+      },
+      rules: LEAGUE_RULES,
+      penaltyFree,
+    });
+
+  it('applies only to the selected players, and only in the first gameweek of the month', () => {
+    const standings = run({ 1: 8 });
+    expect(standings.penaltyFreeGameweek).toBe(10);
+    const quy = standings.rows.find((r) => r.participant.entryId === 1);
+    const hieu = standings.rows.find((r) => r.participant.entryId === 2);
+
+    expect(quy?.gameweeks[10]).toMatchObject({ net: 52, transferCost: 8, waivedCost: 8 });
+    expect(quy?.gameweeks[11]).toMatchObject({ net: 42, transferCost: 8, waivedCost: 0 });
+    expect(quy?.month).toMatchObject({ points: 94, transferCost: 16, waivedCost: 8 });
+
+    // Hieu was not given an allowance.
+    expect(hieu?.gameweeks[10]).toMatchObject({ net: 46, transferCost: 4, waivedCost: 0 });
+  });
+
+  it('changes the gameweek and month rankings', () => {
+    const without = run({});
+    const withAllowance = run({ 1: 8, 2: 8 });
+    // GW10 without: Quy 44, Hieu 46 → Hieu wins. With 8 free each: Quy 52, Hieu 50 → Quy wins.
+    expect(without.rows.find((r) => r.participant.entryId === 2)?.gameweeks[10]?.position).toBe(1);
+    expect(
+      withAllowance.rows.find((r) => r.participant.entryId === 1)?.gameweeks[10]?.position,
+    ).toBe(1);
+  });
+
+  it('defaults to no allowance', () => {
+    const standings = run({});
+    const quy = standings.rows.find((r) => r.participant.entryId === 1);
+    expect(quy?.gameweeks[10]).toMatchObject({ net: 44, transferCost: 16, waivedCost: 0 });
   });
 });

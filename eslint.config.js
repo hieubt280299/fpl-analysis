@@ -6,7 +6,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', 'functions/lib', 'functions/node_modules']),
+  globalIgnores(['dist', 'coverage', '.vercel']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -52,7 +52,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['*.config.{js,ts}', 'functions/**/*.ts'],
+    files: ['*.config.{js,ts}', 'api/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
 ]);
