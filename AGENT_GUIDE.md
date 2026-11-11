@@ -1,0 +1,204 @@
+# AGENT_GUIDE — FPL Analysis
+
+The single source of truth for **what this app must do** and **how code in this repo must be
+written**. Read it fully before changing anything. If a change alters a rule below, update this file
+in the same change.
+
+---
+
+## 1. Product
+
+A web app with two features:
+
+1. **Mini-league manager**: runs a monthly prize competition on top of an FPL classic league.
+2. **Fixture Difficulty (FDR) analysis**: ranks Premier League teams by how easy their next five
+   gameweeks are, reproducing the owner's spreadsheet formula exactly.
+
+Anyone can view both. Only **admins** can change settings, choose participants or finalize months.
+
+---
+
+## 2. Business rules — Mini-league (do not change without the owner's approval)
+
+| #   | Rule                                                                                                                                                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1  | Each participant contributes **200 gold** per month (`LEAGUE_RULES.entryFee`). Pot = participants × 200.                                                                                                                                             |
+| L2  | A **month** contains every gameweek (GW) whose **deadline** falls on a day in that calendar month, evaluated in the league's configured **time zone** (default `Asia/Ho_Chi_Minh`). Deadlines come from `bootstrap-static` `events[].deadline_time`. |
+| L3  | **40 %** of the pot is the month prize; **60 %** is split **equally** across the month's GWs.                                                                                                                                                        |
+| L4  | Every prize (each GW and the month) goes to **winner : runner-up = 3 : 1**.                                                                                                                                                                          |
+| L5  | The league is configurable by an admin (default `758527`). Members and names come from `leagues-classic/{id}/standings/` (all pages).                                                                                                                |
+| L6  | Not every member plays every month. An **admin explicitly picks** each month's participants.                                                                                                                                                         |
+| L7  | Score = official FPL GW points **minus transfer hits** (`points − event_transfers_cost` from `entry/{id}/history/`). Month score = sum of its GWs. A missing GW counts as 0.                                                                         |
+| L8  | Ranking: **highest score**, then **fewest chips used** (in that GW / across the month's GWs), then **most bench points** (`points_on_bench`, summed for the month).                                                                                  |
+| L9  | Players still level after both tie-breakers **share a position** ("1224" ranking), and the prizes of every place they occupy are **pooled and split equally**. Example: 3 tied for 1st each get (winner + runner-up) ÷ 3.                            |
+| L10 | Prizes are **provisional** while a GW is live or not yet `data_checked`; **final** once FPL confirms. Upcoming GWs award nothing. The month prize is shown provisionally as soon as its first GW starts.                                             |
+| L11 | An admin may **finalize** a month once every GW is final. This freezes inputs (GWs, scores, rules) in Firestore so results survive FPL's season reset and later rule changes. **Reopen** discards the snapshot.                                      |
+
+Worked example (the original sheet, November 2026, GW10–12): 4 players → pot 800 → each GW 160
+(120 / 40), month 320 (240 / 80). GW10: Quy 71 → 120, Hieu 61 → 40, An 59, Huy 44 − 4 = 40.
+
+## 3. Business rules — FDR analysis
+
+| #   | Rule                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Columns: Rank, Team, Last season (final PL position), This season (current PL position), FDR for the next 5 GWs, AVG.                                                               |
+| F2  | FDR per fixture = official FPL difficulty (`team_h_difficulty` / `team_a_difficulty` from `/fixtures/`).                                                                            |
+| F3  | `AVG = ROUND((G1×2.6 + G2×2.3 + G3×2.0 + G4×1.7 + G5×1.4) × (0.8 + 0.01×Last×wLast + 0.01×This×wThis), 1)`                                                                          |
+| F4  | `wLast + wThis = 1`, admin-adjustable (default 0.1 / 0.9). Only `lastSeasonWeight` is stored; `thisSeason = 1 − lastSeason`.                                                        |
+| F5  | Rounding is Excel `ROUND` (half away from zero, after normalising to 15 significant digits): `roundHalfAwayFromZero`.                                                               |
+| F6  | Sort by AVG ascending; **Rank** is Excel `RANK` on the rounded AVG (ties share a rank, the next rank is skipped). Teams with the same AVG are listed alphabetically.                |
+| F7  | **Last season** positions are admin-entered and keyed by FPL team **`code`** (stable across seasons; `id` is not). Promoted teams default to **20**. Seeded with the 2025/26 table. |
+| F8  | **This season** = table computed from finished fixtures (points, goal difference, goals scored, then name).                                                                         |
+| F9  | Default window starts at the **next GW whose deadline has not passed**; users may shift it (URL `?from=N`). The window is clamped so 5 GWs always fit (max start 34).               |
+| F10 | Double GW → **mean** difficulty of its fixtures. Blank GW → **5** (`FDR_BLANK_GAMEWEEK_VALUE`). (Defaults; owner may revise.)                                                       |
+
+The test suite reproduces all 20 rows of the original sheet (`src/domain/fdr/fdr.test.ts`). It must
+keep passing.
+
+---
+
+## 4. Architecture
+
+```
+React 19 + TypeScript (strict) + Vite 6 + Tailwind 3 + TanStack Query 5 + React Router 7
+Firebase: Hosting · Auth (Google) · Firestore · Cloud Functions v2 (Node 22)
+```
+
+### 4.1 Folder structure and layering
+
+```
+src/
+  main.tsx              entry point
+  app/                  shell: providers, router, layout, error pages
+  config/               business constants & defaults (pure data, no logic)
+    league.ts             LEAGUE_RULES, DEFAULT_LEAGUE_SETTINGS
+    fdr.ts                formula weights, defaults, 2025/26 seed table
+  domain/               PURE business logic + unit tests. The heart of the app.
+    shared/math.ts        Excel rounding, ranking helpers
+    league/               months, prizes, ranking, monthStandings
+    fdr/                  fdr formula/table, leagueTable
+  lib/                  infrastructure adapters
+    firebase/client.ts    Firebase init (optional: app runs read-only without it)
+    fpl/                  FPL API: raw types, client, mappers → domain types, query hooks
+  features/             one folder per feature: api/ (Firestore), hooks/, components/, pages/, model.ts
+    auth/                 Google sign-in, admin check, RequireAdmin
+    settings/             settings/league + settings/fdr docs and the Settings page
+    league/               month page, participants editor, finalize/reopen
+    fdr/                  FDR page, table, admin formula panel
+  components/ui/        shared presentational primitives (no data fetching)
+  utils/                formatting, error helpers
+  styles/index.css      Tailwind + table styles
+functions/src/index.ts  fplProxy Cloud Function (allow-listed FPL proxy)
+firestore.rules         security rules (server-side source of truth for permissions)
+```
+
+**Dependency direction (enforced by ESLint for `domain/`):**
+`app → features → (lib, components, utils) → domain → config`
+
+- `domain/` imports only `config/` and other `domain/` files. **No React, Firebase, TanStack,
+  `lib`, `features`, or `components`.** Every domain function is pure and deterministic. Pass the
+  current time in instead of reading it.
+- `lib/fpl/types.ts` (raw API shapes) must not leak outside `lib/fpl`. Convert them in
+  `lib/fpl/mappers.ts`.
+- Components never call `fetch` or Firestore directly. Use hooks in `features/*/hooks` or
+  `lib/fpl/queries.ts`.
+- Features import other features only through their `index.ts`. Only `auth` and `settings` are
+  imported by other features.
+- Pages are thin: they compose hooks + components; business decisions live in `domain/`.
+
+### 4.2 Data sources
+
+| Data                              | Endpoint (via `/api/fpl/…`)                        | Hook                |
+| --------------------------------- | -------------------------------------------------- | ------------------- |
+| GWs (deadlines, status), teams    | `bootstrap-static/` (~1.8 MB, mapped & dropped)    | `useSeasonData`     |
+| All fixtures (FDR + PL table)     | `fixtures/`                                        | `useFixtures`       |
+| League members                    | `leagues-classic/{id}/standings/?page_standings=n` | `useLeagueMembers`  |
+| Per-GW points, hits, bench, chips | `entry/{id}/history/`                              | `useEntryHistories` |
+
+Note: the owner pointed at `fixtures/?future=1` for month grouping, but that omits past GWs and has
+no deadlines. Deadlines come from `bootstrap-static` (FPL's own `phases` agree, e.g. November = 10–12).
+
+**CORS:** the FPL API cannot be called from the browser. Every request goes to same-origin
+`/api/fpl/*`:
+
+- dev/preview: Vite proxy (`vite.config.ts`)
+- production: Firebase Hosting rewrite → `fplProxy` function (`functions/src/index.ts`)
+
+**Adding an FPL endpoint requires updating `ROUTES` in the function's allow-list.** The proxy is
+GET-only, path- and query-allow-listed, and sets `s-maxage` so the Hosting CDN caches responses.
+
+### 4.3 Firestore data model
+
+| Path                        | Shape                                                                                                                                                                                                           | Write        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `admins/{lower-case email}` | any (existence = admin)                                                                                                                                                                                         | console only |
+| `settings/league`           | `{ leagueId:int, timeZone:string, updatedAt, updatedBy }`                                                                                                                                                       | admin        |
+| `settings/fdr`              | `{ lastSeasonWeight:0..1, lastSeasonLabel, lastSeasonPositions:{[teamCode]:1..20}, updatedAt, updatedBy }`                                                                                                      | admin        |
+| `months/{YYYY-MM}`          | `{ monthKey, leagueId, participants:[{entryId,playerName,entryName}], status:'open'\|'finalized', snapshot:null\|{finalizedAt, gameweeks[], scores:{[entryId]:GameweekScore[]}, rules}, updatedAt, updatedBy }` | admin        |
+
+- Reads are public. Writes require a verified-email user listed in `admins` **and** pass the schema
+  checks in `firestore.rules`. If you add a field, update the rule's `hasOnly([...])` list.
+- `updatedAt` must be `serverTimestamp()` and `updatedBy` the caller's lower-case email (the rules
+  check both).
+- Firestore docs are parsed tolerantly (`features/*/model.ts`): invalid fields fall back to defaults.
+  Never trust stored data shapes without parsing.
+- Writes replace whole docs (`setDoc`). Strip `undefined` before writing (Firestore rejects it).
+
+### 4.4 State and caching
+
+- Server state = TanStack Query. Keys live next to their hooks (`fplKeys`, `settingsKeys`,
+  `monthKeys`). Mutations invalidate or `setQueryData`; no manual refetch chains.
+- Stale times: bootstrap/fixtures 5 min, entry history 1 min, league 2 min, Firestore 1–5 min.
+- Client-error FPL responses (4xx) and Firestore `permission-denied` are not retried.
+
+---
+
+## 5. Coding standards
+
+- TypeScript `strict` + `noUncheckedIndexedAccess`. No `any` (lint error). Use `import type` for
+  types.
+- Named exports only (no default exports, except config files).
+- Money is a plain `number` in gold; never round inside the domain. Format only in the UI
+  (`formatAmount`, at most 2 decimals).
+- Dates: store/compare ISO UTC strings; convert to the league time zone only for grouping and
+  display (`Intl.DateTimeFormat` with `timeZone`). No date library.
+- UI: Tailwind utilities; shared table look via `.data-table`. Its selectors use `:where()` so cell
+  utilities (FDR colours, winner highlights, alignment) always win. Keep it that way.
+- Accessibility: real `<button>`/`<label>`/`<select>`, `aria-label` on icon-only buttons, visible
+  focus rings.
+- Responsive: the page never scrolls horizontally; wide tables scroll inside their card
+  (`overflow-x-auto`).
+- Every user-visible async state handles **pending, error (with retry) and empty**.
+- Keep files focused (≈ < 250 lines). Prefer adding a component over growing a page.
+
+## 6. Testing and Definition of Done
+
+- **Any change in `src/domain/` or a `model.ts` parser needs unit tests** (Vitest, node env,
+  `*.test.ts` next to the file). Use real numbers from the owner's sheets where possible.
+- Before finishing, run `npm run check` (typecheck + lint + tests) and `npm run build`, and
+  `npm --prefix functions run build` if `functions/` changed. All must pass with **zero** lint
+  warnings.
+- Do not weaken or delete the spreadsheet-reproduction tests to make a change pass. If the formula
+  legitimately changes, update the expected values **and** this guide.
+- Never commit `.env*` files or Firebase service-account keys.
+
+## 7. Commands
+
+| Command             | Purpose                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `npm run dev`       | Vite dev server with FPL proxy (works without Firebase: read-only) |
+| `npm run check`     | typecheck + lint + unit tests                                      |
+| `npm run build`     | production build to `dist/`                                        |
+| `npm run emulators` | Firebase emulators (auth, firestore, functions, hosting)           |
+| `npm run deploy`    | check → build → `firebase deploy` (hosting, functions, rules)      |
+
+## 8. Known limitations and open decisions
+
+- **This-season positions** use points → GD → GF → name. The PL's head-to-head tie-breakers are not
+  modelled.
+- **Double/blank GW handling** (F10) is a default, pending the owner's confirmation.
+- **Time zone** for month boundaries is configurable. It only matters when a deadline falls near
+  midnight at a month boundary.
+- Live GW points come from `entry/{id}/history/`, which FPL updates during the GW. Bonus points may
+  lag until FPL finalizes them, which is why results stay provisional.
+- Cloud Functions require the Firebase **Blaze** plan. Usage at this scale stays within the free tier.

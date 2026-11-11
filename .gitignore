@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+functions/node_modules/
+
+# builds
+dist/
+functions/lib/
+coverage/
+*.tsbuildinfo
+
+# env — never commit real Firebase config for other environments
+.env
+.env.local
+.env.*.local
+
+# firebase
+.firebase/
+.firebaserc
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+*-debug.log
+
+# editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
