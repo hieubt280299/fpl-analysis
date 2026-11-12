@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseMonthDoc } from './model';
+import type { Gameweek } from '@/domain/league';
+import { monthsAwaitingFinalization, parseMonthDoc } from './model';
 
 describe('parseMonthDoc', () => {
   it('returns null for a missing document', () => {
@@ -69,5 +70,59 @@ describe('parseMonthDoc', () => {
     expect(parseMonthDoc('2026-11', { status: 'finalized', participants: [] })?.status).toBe(
       'open',
     );
+  });
+});
+
+describe('monthsAwaitingFinalization', () => {
+  const gw = (id: number, final: boolean): Gameweek => ({
+    id,
+    name: `Gameweek ${id}`,
+    deadline: '2026-10-10T10:00:00Z',
+    status: final ? 'finished' : 'live',
+    dataChecked: final,
+  });
+  const month = (monthKey: string, status: 'open' | 'finalized', players = 4) =>
+    parseMonthDoc(monthKey, {
+      leagueId: 1,
+      participants: Array.from({ length: players }, (_, i) => ({
+        entryId: i + 1,
+        playerName: `P${i}`,
+        entryName: '',
+      })),
+      status,
+      snapshot:
+        status === 'finalized' ? { finalizedAt: 'x', gameweeks: [], scores: {}, rules: {} } : null,
+    })!;
+  const seasonMonths = [
+    { key: '2026-10', gameweekIds: [6, 7, 8, 9] },
+    { key: '2026-11', gameweekIds: [10, 11, 12] },
+  ];
+  const gameweeks = [
+    gw(6, true),
+    gw(7, true),
+    gw(8, true),
+    gw(9, true),
+    gw(10, true),
+    gw(11, false),
+  ];
+
+  it('lists open months whose gameweeks are all final', () => {
+    expect(
+      monthsAwaitingFinalization(
+        [month('2026-11', 'open'), month('2026-10', 'open')],
+        seasonMonths,
+        gameweeks,
+      ),
+    ).toEqual(['2026-10']);
+  });
+
+  it('ignores finalized months, months without participants and other seasons', () => {
+    expect(
+      monthsAwaitingFinalization(
+        [month('2026-10', 'finalized'), month('2026-10', 'open', 0), month('2025-10', 'open')],
+        seasonMonths,
+        gameweeks,
+      ),
+    ).toEqual([]);
   });
 });

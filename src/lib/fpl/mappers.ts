@@ -1,8 +1,15 @@
 import type { Fixture, Team } from '@/domain/fdr';
-import type { Gameweek, GameweekScore, GameweekStatus, Participant } from '@/domain/league';
+import type {
+  EventStatus,
+  Gameweek,
+  GameweekScore,
+  GameweekStatus,
+  Participant,
+} from '@/domain/league';
 import type {
   FplEntryHistoryResponse,
   FplEvent,
+  FplEventStatusResponse,
   FplFixture,
   FplLeagueStandingResult,
   FplTeam,
@@ -21,14 +28,41 @@ export function mapGameweekStatus(event: FplEvent, now: number): GameweekStatus 
 
 export function mapGameweeks(events: readonly FplEvent[], now = Date.now()): Gameweek[] {
   return events
-    .map((e) => ({
-      id: e.id,
-      name: e.name,
-      deadline: e.deadline_time,
-      status: mapGameweekStatus(e, now),
-      dataChecked: e.data_checked,
-    }))
+    .map((e) => {
+      const status = mapGameweekStatus(e, now);
+      const started = status !== 'upcoming';
+      return {
+        id: e.id,
+        name: e.name,
+        deadline: e.deadline_time,
+        status,
+        dataChecked: e.data_checked,
+        averageScore:
+          started && typeof e.average_entry_score === 'number' ? e.average_entry_score : null,
+        highestScore: started && typeof e.highest_score === 'number' ? e.highest_score : null,
+      };
+    })
     .sort((a, b) => a.id - b.id);
+}
+
+const POINTS_STATE: Record<string, EventStatus['days'][number]['points']> = {
+  l: 'live',
+  r: 'done',
+};
+
+export function mapEventStatus(response: FplEventStatusResponse): EventStatus {
+  const days = (response.status ?? []).map((d) => ({
+    date: d.date,
+    bonusAdded: d.bonus_added === true,
+    points: POINTS_STATE[d.points] ?? ('not-started' as const),
+  }));
+  const leagues =
+    response.leagues === 'Updated'
+      ? 'updated'
+      : response.leagues === 'Updating'
+        ? 'updating'
+        : 'pending';
+  return { gameweek: response.status?.[0]?.event ?? null, days, leagues };
 }
 
 export function mapTeams(teams: readonly FplTeam[]): Team[] {

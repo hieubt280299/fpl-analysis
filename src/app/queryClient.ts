@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { FirebaseNotConfiguredError } from '@/lib/firebase/client';
 import { FplApiError } from '@/lib/fpl/client';
+import { CACHE_MAX_AGE_MS } from './persistence';
 
 const MAX_RETRIES = 2;
 
@@ -19,6 +20,8 @@ export function createQueryClient(): QueryClient {
         retry: shouldRetry,
         refetchOnWindowFocus: true,
         staleTime: 60_000,
+        // Must be ≥ the browser cache's maxAge, or cached FPL data is dropped before it is saved.
+        gcTime: CACHE_MAX_AGE_MS,
       },
       mutations: {
         retry: false,

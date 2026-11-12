@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapEntryHistory, mapGameweeks } from './mappers';
+import { mapEntryHistory, mapEventStatus, mapGameweeks } from './mappers';
 import type { FplEvent } from './types';
 
 describe('mapEntryHistory', () => {
@@ -45,6 +45,8 @@ describe('mapGameweeks', () => {
     is_current: false,
     is_next: false,
     is_previous: false,
+    average_entry_score: 0,
+    highest_score: null,
   };
   const now = Date.parse('2026-11-10T00:00:00Z');
 
@@ -60,5 +62,71 @@ describe('mapGameweeks', () => {
     expect(finished).toMatchObject({ status: 'finished', dataChecked: true });
     expect(live?.status).toBe('live');
     expect(upcoming?.status).toBe('upcoming');
+  });
+});
+
+describe('mapGameweeks averages', () => {
+  it('keeps average and highest scores only once the deadline has passed', () => {
+    const base = {
+      name: 'GW',
+      finished: false,
+      data_checked: false,
+      is_current: false,
+      is_next: false,
+      is_previous: false,
+    };
+    const [played, upcoming] = mapGameweeks(
+      [
+        {
+          ...base,
+          id: 10,
+          deadline_time: '2026-11-06T18:30:00Z',
+          finished: true,
+          average_entry_score: 55,
+          highest_score: 139,
+        },
+        {
+          ...base,
+          id: 11,
+          deadline_time: '2026-11-21T11:00:00Z',
+          average_entry_score: 0,
+          highest_score: null,
+        },
+      ],
+      Date.parse('2026-11-12T00:00:00Z'),
+    );
+    expect(played).toMatchObject({ averageScore: 55, highestScore: 139 });
+    expect(upcoming).toMatchObject({ averageScore: null, highestScore: null });
+  });
+});
+
+describe('mapEventStatus', () => {
+  it('maps the real response shape (verified 12 Nov 2026)', () => {
+    expect(
+      mapEventStatus({
+        status: [
+          { bonus_added: true, date: '2026-11-06', event: 10, points: 'r' },
+          { bonus_added: false, date: '2026-11-07', event: 10, points: 'l' },
+          { bonus_added: false, date: '2026-11-08', event: 10, points: '' },
+        ],
+        leagues: 'Updated',
+      }),
+    ).toEqual({
+      gameweek: 10,
+      days: [
+        { date: '2026-11-06', bonusAdded: true, points: 'done' },
+        { date: '2026-11-07', bonusAdded: false, points: 'live' },
+        { date: '2026-11-08', bonusAdded: false, points: 'not-started' },
+      ],
+      leagues: 'updated',
+    });
+  });
+
+  it('recognises FPL updating its league tables', () => {
+    expect(mapEventStatus({ status: [], leagues: 'Updating' })).toEqual({
+      gameweek: null,
+      days: [],
+      leagues: 'updating',
+    });
   });
 });

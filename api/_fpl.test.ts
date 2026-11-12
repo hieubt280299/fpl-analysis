@@ -8,6 +8,9 @@ describe('resolveFplTarget', () => {
     expect(resolveFplTarget(at('path=bootstrap-static'))?.url.href).toBe(
       'https://fantasy.premierleague.com/api/bootstrap-static/',
     );
+    expect(resolveFplTarget(at('path=event-status/'))?.url.href).toBe(
+      'https://fantasy.premierleague.com/api/event-status/',
+    );
     expect(resolveFplTarget(at('path=entry%2F130307%2Fhistory%2F'))?.url.href).toBe(
       'https://fantasy.premierleague.com/api/entry/130307/history/',
     );

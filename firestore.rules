@@ -41,11 +41,17 @@ service cloud.firestore {
     }
 
     function isValidFdrSettings(d) {
-      return d.keys().hasOnly(['gameweekWeights', 'lastSeasonWeight', 'lastSeasonLabel', 'lastSeasonPositions', 'updatedAt', 'updatedBy'])
+      return d.keys().hasOnly(['gameweekWeights', 'lastSeasonLabel', 'lastSeasonPositions', 'updatedAt', 'updatedBy'])
         && isValidGameweekWeights(d.gameweekWeights)
-        && d.lastSeasonWeight is number && d.lastSeasonWeight >= 0 && d.lastSeasonWeight <= 1
         && d.lastSeasonLabel is string && d.lastSeasonLabel.size() <= 20
         && d.lastSeasonPositions is map && d.lastSeasonPositions.size() <= 40
+        && isStamped(d);
+    }
+
+    function isValidCalendarSettings(d) {
+      return d.keys().hasOnly(['season', 'gameweekMonths', 'updatedAt', 'updatedBy'])
+        && d.season is string && d.season.size() <= 10
+        && d.gameweekMonths is map && d.gameweekMonths.size() <= 38
         && isStamped(d);
     }
 
@@ -74,6 +80,11 @@ service cloud.firestore {
     match /settings/fdr {
       allow read: if true;
       allow write: if isAdmin() && isValidFdrSettings(request.resource.data);
+    }
+
+    match /settings/calendar {
+      allow read: if true;
+      allow write: if isAdmin() && isValidCalendarSettings(request.resource.data);
     }
 
     match /months/{monthKey} {

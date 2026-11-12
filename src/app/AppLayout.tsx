@@ -2,6 +2,7 @@ import { NavLink, Outlet, ScrollRestoration } from 'react-router';
 import { cn } from '@/components/ui';
 import { useAuth, UserMenu } from '@/features/auth';
 import { isFirebaseConfigured } from '@/lib/firebase/client';
+import { FplUpdatingBanner } from './FplUpdatingBanner';
 
 function navClass({ isActive }: { isActive: boolean }) {
   return cn(
@@ -11,7 +12,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 }
 
 export function AppLayout() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, notice, dismissNotice } = useAuth();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -37,6 +38,24 @@ export function AppLayout() {
           <UserMenu />
         </div>
       </header>
+
+      {notice && (
+        <div className="border-b border-red-200 bg-red-50" role="alert">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 text-sm text-red-900">
+            <span>{notice}</span>
+            <button
+              type="button"
+              onClick={dismissNotice}
+              className="rounded px-2 text-red-700 hover:bg-red-100"
+              aria-label="Close message"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      <FplUpdatingBanner />
 
       {!isFirebaseConfigured && (
         <div className="border-b border-amber-200 bg-amber-50">

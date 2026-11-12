@@ -16,7 +16,26 @@ export interface Gameweek {
   status: GameweekStatus;
   /** FPL has confirmed all points for this GW; results can no longer change. */
   dataChecked: boolean;
+  /** Average score of all FPL managers (null before the deadline / in old snapshots). */
+  averageScore?: number | null;
+  /** Highest score of any FPL manager (null before the deadline / in old snapshots). */
+  highestScore?: number | null;
 }
+
+/**
+ * FPL's processing state for the current gameweek (`event-status/`).
+ * - days: one entry per match day; `points` is FPL's code: 'l' = live, 'r' = done, '' = not started.
+ * - leagues: 'updating' while FPL recalculates league tables (the API is often unavailable then).
+ */
+export interface EventStatus {
+  gameweek: number | null;
+  days: Array<{ date: string; bonusAdded: boolean; points: 'live' | 'done' | 'not-started' }>;
+  leagues: 'updated' | 'updating' | 'pending';
+}
+
+/** A finer label for a provisional gameweek, derived from EventStatus. */
+export type GameweekProgress =
+  'live' | 'in-progress' | 'awaiting-bonus' | 'bonus-added' | 'tables-updating';
 
 export interface LeagueMonth {
   key: MonthKey;

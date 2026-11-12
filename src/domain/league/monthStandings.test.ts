@@ -41,6 +41,7 @@ describe('computeMonthStandings', () => {
     expect(standings.columns.map((c) => c.state)).toEqual(['final', 'pending', 'pending']);
 
     const byName = Object.fromEntries(standings.rows.map((r) => [r.participant.playerName, r]));
+    expect(byName['Huy Pham']?.gameweeks[10]?.points).toBe(44); // GW column: gross
     expect(byName['Huy Pham']?.gameweeks[10]?.net).toBe(40);
     expect(byName['Huy Pham']?.month.points).toBe(40);
     expect(byName['Huy Pham']?.month.transferCost).toBe(4);
@@ -142,14 +143,24 @@ describe('penalty-free allowance', () => {
     expect(hieu?.gameweeks[10]).toMatchObject({ net: 46, transferCost: 4, waivedCost: 0 });
   });
 
-  it('changes the gameweek and month rankings', () => {
-    const without = run({});
-    const withAllowance = run({ 1: 8, 2: 8 });
-    // GW10 without: Quy 44, Hieu 46 → Hieu wins. With 8 free each: Quy 52, Hieu 50 → Quy wins.
-    expect(without.rows.find((r) => r.participant.entryId === 2)?.gameweeks[10]?.position).toBe(1);
-    expect(
-      withAllowance.rows.find((r) => r.participant.entryId === 1)?.gameweeks[10]?.position,
-    ).toBe(1);
+  it('ranks gameweeks on gross points but the month on net points', () => {
+    const standings = run({});
+    const quy = standings.rows.find((r) => r.participant.entryId === 1);
+    const hieu = standings.rows.find((r) => r.participant.entryId === 2);
+    // GW10 gross: Quy 60 (−16 hit) vs Hieu 50 (−4 hit) → Quy wins the GW despite the bigger hit.
+    expect(quy?.gameweeks[10]).toMatchObject({ points: 60, net: 44, position: 1, prize: 90 });
+    expect(hieu?.gameweeks[10]).toMatchObject({ points: 50, net: 46, position: 2, prize: 30 });
+    // Month net: Quy 44 + 42 = 86, Hieu 46 + 50 = 96 → Hieu wins the month.
+    expect(quy?.month).toMatchObject({ points: 86, position: 2 });
+    expect(hieu?.month).toMatchObject({ points: 96, position: 1 });
+  });
+
+  it('changes only the month total, never the gameweek ranking', () => {
+    const standings = run({ 1: 16 });
+    const quy = standings.rows.find((r) => r.participant.entryId === 1);
+    // GW10 hit fully waived → month 60 + 42 = 102 beats Hieu's 96; GW10 ranking is unchanged.
+    expect(quy?.month).toMatchObject({ points: 102, position: 1 });
+    expect(quy?.gameweeks[10]).toMatchObject({ points: 60, position: 1 });
   });
 
   it('defaults to no allowance', () => {

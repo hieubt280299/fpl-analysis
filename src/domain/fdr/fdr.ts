@@ -3,6 +3,7 @@ import {
   FDR_BLANK_GAMEWEEK_VALUE,
   FDR_GAMEWEEK_WEIGHTS_TOTAL,
   FDR_POSITION_COEFFICIENT,
+  FDR_THIS_SEASON_WEIGHT_PER_GAMEWEEK,
   FDR_WINDOW_SIZE,
 } from '@/config/fdr';
 import { clamp, competitionRanks, roundHalfAwayFromZero, sum } from '../shared/math';
@@ -14,7 +15,7 @@ export interface PositionWeights {
   thisSeason: number;
 }
 
-/** Everything admin-adjustable in the formula. */
+/** The variable parts of the formula. */
 export interface FdrFormula {
   /** One weight per gameweek in the window, nearest first. Sums to 10. */
   gameweekWeights: readonly number[];
@@ -49,17 +50,24 @@ export interface FdrRow {
   rank: number;
 }
 
-/** Position weights always sum to 1: the admin sets last season's, this season gets the rest. */
-export function weightsFromLastSeason(lastSeasonWeight: number): PositionWeights {
-  const lastSeason = roundHalfAwayFromZero(clamp(lastSeasonWeight, 0, 1), 4);
-  return { lastSeason, thisSeason: roundHalfAwayFromZero(1 - lastSeason, 4) };
+/**
+ * Position weights are automatic: this season's weight grows by 10% per finished gameweek
+ * (0% before GW1, 100% once 10 GWs are finished); last season's is the remainder. Always sums to 1.
+ */
+export function positionWeightsAfter(finishedGameweeks: number): PositionWeights {
+  const finished = Math.max(0, Math.trunc(finishedGameweeks));
+  const thisSeason = roundHalfAwayFromZero(
+    clamp(finished * FDR_THIS_SEASON_WEIGHT_PER_GAMEWEEK, 0, 1),
+    4,
+  );
+  return { lastSeason: roundHalfAwayFromZero(1 - thisSeason, 4), thisSeason };
 }
 
 export function createFdrFormula(
   gameweekWeights: readonly number[],
-  lastSeasonWeight: number,
+  finishedGameweeks: number,
 ): FdrFormula {
-  return { gameweekWeights, positionWeights: weightsFromLastSeason(lastSeasonWeight) };
+  return { gameweekWeights, positionWeights: positionWeightsAfter(finishedGameweeks) };
 }
 
 /** Returns an error message, or null when the weights are valid (5 non-negative, summing to 10). */
@@ -80,14 +88,14 @@ export function validateGameweekWeights(weights: readonly number[]): string | nu
 /**
  * The value a gameweek contributes to the formula.
  * - Single fixture → its difficulty.
- * - Double (or more) GW → 1 / (1/M1 + 1/M2 + …): more matches make the gameweek easier.
+ * - Double (or more) GW → 1 / (1/M1 + 1/M2 + …), rounded to 1 decimal (e.g. 3 & 5 → 1.9).
  * - Blank GW → FDR_BLANK_GAMEWEEK_VALUE (6, worse than any real fixture).
  */
 export function cellValue(fixtures: readonly Pick<FdrFixtureRef, 'difficulty'>[]): number {
   const difficulties = fixtures.map((f) => f.difficulty).filter((d) => d > 0);
   if (difficulties.length === 0) return FDR_BLANK_GAMEWEEK_VALUE;
   if (difficulties.length === 1) return difficulties[0] as number;
-  return 1 / sum(difficulties.map((d) => 1 / d));
+  return roundHalfAwayFromZero(1 / sum(difficulties.map((d) => 1 / d)), 1);
 }
 
 /**
@@ -122,16 +130,16 @@ export function fdrScore(
   );
 }
 
-/** Clamp a requested first gameweek so a full window fits in the season. */
-export function clampWindowStart(start: number, totalGameweeks: number): number {
-  return clamp(Math.trunc(start), 1, Math.max(1, totalGameweeks - FDR_WINDOW_SIZE + 1));
-}
-
-export function fdrWindow(start: number, totalGameweeks: number): number[] {
-  const first = clampWindowStart(start, totalGameweeks);
-  return Array.from({ length: FDR_WINDOW_SIZE }, (_, i) => first + i).filter(
-    (gw) => gw <= totalGameweeks,
-  );
+/**
+ * The gameweeks the table covers: the next gameweek whose deadline has not passed, plus the
+ * following ones — at most 5, and never past the end of the season. Past gameweeks are never
+ * shown, and nothing further ahead (league positions can't be projected that far).
+ * Empty when the season has no upcoming gameweek.
+ */
+export function upcomingWindow(nextGameweek: number | null, totalGameweeks: number): number[] {
+  if (nextGameweek === null || nextGameweek < 1 || nextGameweek > totalGameweeks) return [];
+  const last = Math.min(nextGameweek + FDR_WINDOW_SIZE - 1, totalGameweeks);
+  return Array.from({ length: last - nextGameweek + 1 }, (_, i) => nextGameweek + i);
 }
 
 export function buildFdrCells(

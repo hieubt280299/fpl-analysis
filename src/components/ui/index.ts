@@ -7,3 +7,5 @@ export { PageHeader } from './PageHeader';
 export { LoadingState, Spinner } from './Spinner';
 export { StatTile } from './StatTile';
 export { EmptyState, ErrorState } from './States';
+export { StaleDataNotice } from './StaleDataNotice';
+export { SortHeader, type SortDirection } from './SortHeader';

@@ -12,6 +12,16 @@ export interface FplEvent {
   is_current: boolean;
   is_next: boolean;
   is_previous: boolean;
+  /** Average manager score; 0 before the gameweek is played. */
+  average_entry_score: number;
+  highest_score: number | null;
+}
+
+/** GET /event-status/ — processing state of the current gameweek. */
+export interface FplEventStatusResponse {
+  status: Array<{ bonus_added: boolean; date: string; event: number; points: string }>;
+  /** "Updated", "Updating" or "" (observed values). */
+  leagues: string;
 }
 
 export interface FplTeam {

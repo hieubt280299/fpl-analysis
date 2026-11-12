@@ -13,33 +13,48 @@ import { AuthContext, type AuthState } from './AuthContext';
 interface Session {
   status: AuthState['status'];
   user: User | null;
-  isAdmin: boolean;
 }
 
+/**
+ * Only admins can sign in. Any other Google account is signed out right away and shown a short
+ * message — there is nothing for non-admins to do while signed in.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session>(() => ({
     status: isFirebaseConfigured ? 'loading' : 'ready',
     user: null,
-    isAdmin: false,
   }));
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!firebaseAuth) return undefined;
+    const auth = firebaseAuth;
+    if (!auth) return undefined;
     let latestRequest = 0;
-    return onAuthStateChanged(firebaseAuth, (user) => {
+    return onAuthStateChanged(auth, (user) => {
       const request = ++latestRequest;
       if (!user) {
-        setSession({ status: 'ready', user: null, isAdmin: false });
+        setSession({ status: 'ready', user: null });
         return;
       }
-      void checkIsAdmin(user).then((isAdmin) => {
-        // Ignore stale results if the user changed while the check was in flight.
-        if (request === latestRequest) setSession({ status: 'ready', user, isAdmin });
+      setSession({ status: 'loading', user: null });
+      void checkIsAdmin(user).then(async (result) => {
+        if (request !== latestRequest) return; // the user changed while we were checking
+        if (result === 'admin') {
+          setSession({ status: 'ready', user });
+          return;
+        }
+        setNotice(
+          result === 'not-admin'
+            ? `${user.email ?? 'This account'} is not an admin. Only admins can sign in.`
+            : 'Could not check your admin rights. Please try again.',
+        );
+        await firebaseSignOut(auth);
       });
     });
   }, []);
 
   const signIn = useCallback(async () => {
+    setNotice(null);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     await signInWithPopup(requireAuth(), provider);
@@ -49,9 +64,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(requireAuth());
   }, []);
 
+  const dismissNotice = useCallback(() => setNotice(null), []);
+
   const value = useMemo<AuthState>(
-    () => ({ ...session, isAvailable: isFirebaseConfigured, signIn, signOut }),
-    [session, signIn, signOut],
+    () => ({
+      ...session,
+      isAdmin: session.user !== null,
+      isAvailable: isFirebaseConfigured,
+      notice,
+      dismissNotice,
+      signIn,
+      signOut,
+    }),
+    [session, notice, dismissNotice, signIn, signOut],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

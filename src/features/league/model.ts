@@ -1,4 +1,12 @@
-import type { Gameweek, GameweekScore, MonthKey, Participant, PrizeRules } from '@/domain/league';
+import {
+  gameweekResultState,
+  type Gameweek,
+  type GameweekScore,
+  type LeagueMonth,
+  type MonthKey,
+  type Participant,
+  type PrizeRules,
+} from '@/domain/league';
 
 /**
  * Frozen inputs of a finalized month. Results are always recomputed from these with the domain
@@ -84,6 +92,8 @@ function parseGameweek(value: unknown): Gameweek | null {
     status:
       status === 'upcoming' || status === 'live' || status === 'finished' ? status : 'finished',
     dataChecked: value.dataChecked === true,
+    averageScore: typeof value.averageScore === 'number' ? value.averageScore : null,
+    highestScore: typeof value.highestScore === 'number' ? value.highestScore : null,
   };
 }
 
@@ -149,4 +159,28 @@ export function parseMonthDoc(monthKey: MonthKey, data: unknown): MonthDoc | nul
     updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
     updatedAt: isTimestampLike(data.updatedAt) ? data.updatedAt.toDate() : null,
   };
+}
+
+/**
+ * Months that are complete (every gameweek final) but still open. They must be finalized before
+ * FPL resets for the next season, after which their scores can no longer be recalculated.
+ */
+export function monthsAwaitingFinalization(
+  docs: readonly MonthDoc[],
+  seasonMonths: readonly LeagueMonth[],
+  gameweeks: readonly Gameweek[],
+): MonthKey[] {
+  const byId = new Map(gameweeks.map((gw) => [gw.id, gw]));
+  return docs
+    .filter((doc) => doc.status === 'open' && doc.participants.length > 0)
+    .filter((doc) => {
+      const month = seasonMonths.find((m) => m.key === doc.monthKey);
+      if (!month || month.gameweekIds.length === 0) return false;
+      return month.gameweekIds.every((id) => {
+        const gw = byId.get(id);
+        return gw !== undefined && gameweekResultState(gw) === 'final';
+      });
+    })
+    .map((doc) => doc.monthKey)
+    .sort();
 }

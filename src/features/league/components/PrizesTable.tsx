@@ -2,31 +2,31 @@ import type { MonthStandings, ResultState } from '@/domain/league';
 import { Card, cn } from '@/components/ui';
 import { sum } from '@/domain/shared/math';
 import { formatAmount } from '@/utils/format';
+import { sortByTotalPrize } from '../utils/order';
 
 function Amount({ value, state }: { value: number; state: ResultState }) {
   if (value <= 0) return <span className="text-slate-300">–</span>;
   return (
     <span
       className={cn(state === 'provisional' && 'italic text-amber-700')}
-      title={
-        state === 'provisional' ? 'Provisional — may change until FPL confirms points' : undefined
-      }
+      title={state === 'provisional' ? 'Not final yet' : undefined}
     >
       {formatAmount(value)}
     </span>
   );
 }
 
-/** The "Prizes" table: what each participant has won this month. */
+/** The "Prizes" table: what each player has won this month, biggest winner first. */
 export function PrizesTable({ standings }: { standings: MonthStandings }) {
-  const { columns, rows, monthState, prizes } = standings;
+  const { columns, monthState, prizes } = standings;
+  const rows = sortByTotalPrize(standings.rows);
   const unallocated = prizes.pot - standings.totalAwarded;
   const allAwarded = monthState !== 'pending' && columns.every((c) => c.state !== 'pending');
 
   return (
     <Card
       title="Prizes"
-      description="Ties after all tie-breakers share the prizes of the places they occupy."
+      info="Players with the same points, chips and bench share the prize. Orange = not final yet."
       flush
     >
       <div className="overflow-x-auto">
@@ -77,7 +77,7 @@ export function PrizesTable({ standings }: { standings: MonthStandings }) {
       </div>
       {allAwarded && unallocated > 0.005 && (
         <p className="border-t border-slate-200 px-4 py-2 text-xs text-amber-700">
-          {formatAmount(unallocated)} not allocated (fewer participants than prize places).
+          {formatAmount(unallocated)} not given out (fewer players than prizes).
         </p>
       )}
     </Card>

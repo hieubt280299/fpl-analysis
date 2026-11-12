@@ -9,16 +9,19 @@ import {
   ErrorState,
   LoadingState,
   PageHeader,
+  StaleDataNotice,
   StatTile,
 } from '@/components/ui';
 import { formatDateTime, formatGold } from '@/utils/format';
 import { MonthAdminBar } from '../components/MonthAdminBar';
+import { MonthGameweeksEditor } from '../components/MonthGameweeksEditor';
 import { MonthPicker } from '../components/MonthPicker';
 import { ParticipantsEditor } from '../components/ParticipantsEditor';
 import { PointsTable } from '../components/PointsTable';
 import { PrizeBreakdown } from '../components/PrizeBreakdown';
 import { PrizesTable } from '../components/PrizesTable';
 import { RulesNote } from '../components/RulesNote';
+import { FinalizeReminder } from '../components/FinalizeReminder';
 import { useMonthOptions, useMonthView } from '../hooks/useMonthView';
 
 /** Route `/league/:monthKey?` — redirects to the current month when none is given. */
@@ -60,7 +63,7 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const view = useMonthView(monthKey);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<'players' | 'gameweeks' | null>(null);
 
   const optionIndex = view.options.findIndex((o) => o.key === monthKey);
   const previousMonthKey = optionIndex > 0 ? view.options[optionIndex - 1]?.key : undefined;
@@ -68,7 +71,6 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
   const header = (
     <PageHeader
       title={`Mini-league · ${formatMonthLabel(monthKey)}`}
-      description="Monthly prizes for the selected league members."
       actions={
         <MonthPicker
           options={view.options}
@@ -102,15 +104,46 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
   const hasNoGameweeks = gameweeks.length === 0;
 
   let finalizeBlockedReason: string | undefined;
-  if (!participants.length) finalizeBlockedReason = 'Choose participants first.';
+  if (!participants.length) finalizeBlockedReason = 'Choose players first.';
   else if (standings.monthState !== 'final')
-    finalizeBlockedReason = 'Available once FPL has confirmed every gameweek of the month.';
-  else if (scores.failedEntryIds.length) finalizeBlockedReason = 'Some scores failed to load.';
+    finalizeBlockedReason = 'You can finalize when every GW of the month is final.';
+  else if (scores.failedEntryIds.length) finalizeBlockedReason = 'Some points did not load.';
+  else if (view.refreshError) finalizeBlockedReason = 'FPL can’t be reached right now. Try later.';
+
+  const seasonKeys = view.seasonMonths.map((m) => m.key);
+  const inCurrentSeason =
+    seasonKeys.length > 0 &&
+    monthKey >= (seasonKeys[0] as string) &&
+    monthKey <= (seasonKeys[seasonKeys.length - 1] as string);
+  const gameweeksEdited =
+    !view.isFinalized &&
+    (gameweeks.some((gw) => view.automaticMonths.get(gw.id) !== monthKey) ||
+      [...view.automaticMonths].some(
+        ([id, month]) => month === monthKey && !gameweeks.some((gw) => gw.id === id),
+      ));
 
   return (
     <>
       {header}
       <div className="space-y-6">
+        {isAdmin && (
+          <FinalizeReminder
+            // The month on screen has its own Finalize button in the admin bar.
+            monthKeys={view.awaitingFinalization.filter((k) => k !== monthKey)}
+            seasonComplete={view.seasonComplete}
+          />
+        )}
+
+        <StaleDataNotice
+          error={view.refreshError}
+          updatedAt={view.dataUpdatedAt}
+          onRetry={() => {
+            view.refetch();
+            view.scores.refetch();
+          }}
+          retrying={view.scores.isFetching || view.season.isFetching}
+        />
+
         {isAdmin && !editing && (
           <MonthAdminBar
             month={view.monthDoc}
@@ -118,11 +151,26 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
             canFinalize={view.canFinalize}
             finalizeBlockedReason={finalizeBlockedReason}
             buildSnapshot={view.buildSnapshot}
-            onEditParticipants={() => setEditing(true)}
+            onEditParticipants={() => setEditing('players')}
+            onEditGameweeks={inCurrentSeason ? () => setEditing('gameweeks') : undefined}
           />
         )}
 
-        {isAdmin && editing && (
+        {isAdmin && editing === 'gameweeks' && (
+          <MonthGameweeksEditor
+            monthKey={monthKey}
+            months={view.seasonMonths}
+            gameweeks={view.season.data?.gameweeks ?? []}
+            automaticMonths={view.automaticMonths}
+            overrides={view.overrides}
+            finalizedMonths={view.finalizedMonths}
+            currentSeason={view.currentSeason}
+            timeZone={view.timeZone}
+            onDone={() => setEditing(null)}
+          />
+        )}
+
+        {isAdmin && editing === 'players' && (
           <ParticipantsEditor
             monthKey={monthKey}
             leagueId={view.leagueId}
@@ -130,56 +178,53 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
             currentPenaltyFree={view.monthDoc?.penaltyFree ?? {}}
             penaltyFreeGameweek={gameweeks[0]?.id ?? null}
             previousMonthKey={previousMonthKey}
-            onDone={() => setEditing(false)}
+            onDone={() => setEditing(null)}
           />
         )}
 
         {view.isFinalized && view.monthDoc?.snapshot && (
           <Alert tone="success" title="Finalized">
-            Results were frozen on{' '}
-            {formatDateTime(view.monthDoc.snapshot.finalizedAt, view.timeZone)}
+            Results saved on {formatDateTime(view.monthDoc.snapshot.finalizedAt, view.timeZone)}
             {isAdmin && view.monthDoc.updatedBy ? ` by ${view.monthDoc.updatedBy}` : ''}.
           </Alert>
         )}
 
         {hasNoGameweeks ? (
-          <EmptyState title="No gameweeks this month">
-            No gameweek deadline falls in {formatMonthLabel(monthKey)} ({view.timeZone}).
-          </EmptyState>
+          <EmptyState title="No gameweeks in this month" />
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatTile label="Participants" value={participants.length} />
-              <StatTile label="Pot" value={formatGold(standings.prizes.pot)} />
+              <StatTile label="Players" value={participants.length} />
+              <StatTile label="Prize pool" value={formatGold(standings.prizes.pot)} />
               <StatTile
                 label="Gameweeks"
                 value={first && last ? `GW${first.id}–${last.id}` : '–'}
-                hint={`${gameweeks.length} deadline${gameweeks.length === 1 ? '' : 's'} this month`}
+                hint={`${gameweeks.length} GW${gameweeks.length === 1 ? '' : 's'}${gameweeksEdited ? ' · changed by admin' : ''}`}
               />
               <StatTile
-                label="Awarded so far"
+                label="Prizes so far"
                 value={formatGold(standings.totalAwarded)}
-                hint={
-                  standings.monthState === 'final'
-                    ? 'All results final'
-                    : 'Includes provisional prizes'
-                }
+                hint={standings.monthState === 'final' ? 'Final' : 'Not final yet'}
               />
             </div>
 
             {participants.length === 0 ? (
               <EmptyState
-                title="No participants yet"
+                title="No players yet"
                 action={
                   isAdmin &&
-                  !editing && <Button onClick={() => setEditing(true)}>Choose participants</Button>
+                  !editing && <Button onClick={() => setEditing('players')}>Choose players</Button>
                 }
               >
-                An admin needs to pick which league members play in {formatMonthLabel(monthKey)}.
+                An admin needs to choose the players for this month.
               </EmptyState>
             ) : (
               <>
-                <PrizeBreakdown standings={standings} timeZone={view.timeZone} />
+                <PrizeBreakdown
+                  standings={standings}
+                  timeZone={view.timeZone}
+                  eventStatus={view.eventStatus}
+                />
                 <ScoresSection view={view} />
               </>
             )}
@@ -195,7 +240,7 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
 function ScoresSection({ view }: { view: ReturnType<typeof useMonthView> }) {
   const { scores, standings } = view;
 
-  if (scores.isPending) return <LoadingState label="Loading FPL scores…" />;
+  if (scores.isPending) return <LoadingState label="Loading FPL points…" />;
   if (scores.failedEntryIds.length > 0) {
     const names = view.participants
       .filter((p) => scores.failedEntryIds.includes(p.entryId))
@@ -203,7 +248,7 @@ function ScoresSection({ view }: { view: ReturnType<typeof useMonthView> }) {
       .join(', ');
     return (
       <ErrorState
-        title={`Could not load scores for ${names}`}
+        title={`Could not load points for ${names}`}
         error={scores.errors[0]}
         onRetry={scores.refetch}
       />
@@ -213,9 +258,18 @@ function ScoresSection({ view }: { view: ReturnType<typeof useMonthView> }) {
   return (
     <>
       {scores.needed && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-3">
+          {scores.autoRefreshing && (
+            <span
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700"
+              title="A match is on: points update by themselves"
+            >
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              Live · auto-updates
+            </span>
+          )}
           <Button size="sm" variant="ghost" loading={scores.isFetching} onClick={scores.refetch}>
-            Refresh scores
+            Refresh points
           </Button>
         </div>
       )}

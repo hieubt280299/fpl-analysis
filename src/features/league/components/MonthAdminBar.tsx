@@ -11,6 +11,8 @@ interface Props {
   finalizeBlockedReason?: string;
   buildSnapshot: () => MonthSnapshot;
   onEditParticipants: () => void;
+  /** Omit when the month's gameweeks can't be edited (e.g. not in the current season). */
+  onEditGameweeks?: () => void;
 }
 
 /** Admin-only actions for a month. */
@@ -21,6 +23,7 @@ export function MonthAdminBar({
   finalizeBlockedReason,
   buildSnapshot,
   onEditParticipants,
+  onEditGameweeks,
 }: Props) {
   const finalize = useFinalizeMonth();
   const reopen = useReopenMonth();
@@ -30,7 +33,7 @@ export function MonthAdminBar({
   const handleFinalize = () => {
     if (!month) return;
     const ok = window.confirm(
-      `Finalize ${label}? Scores and prizes will be frozen and no longer read from FPL.`,
+      `Finalize ${label}? Points and prizes will be saved and won’t change any more.`,
     );
     if (ok) finalize.mutate({ month, snapshot: buildSnapshot() });
   };
@@ -38,8 +41,8 @@ export function MonthAdminBar({
   const handleReopen = () => {
     if (!month) return;
     const ok = window.confirm(
-      `Reopen ${label}? The frozen results are discarded and scores are read live from FPL again ` +
-        '(this only works while FPL still serves this season).',
+      `Reopen ${label}? Saved results are removed and points are read from FPL again ` +
+        '(only works during the same season).',
     );
     if (ok) reopen.mutate(month);
   };
@@ -59,13 +62,18 @@ export function MonthAdminBar({
         ) : (
           <>
             <Button size="sm" variant="secondary" onClick={onEditParticipants}>
-              {month?.participants.length ? 'Edit participants' : 'Choose participants'}
+              {month?.participants.length ? 'Edit players' : 'Choose players'}
             </Button>
+            {onEditGameweeks && (
+              <Button size="sm" variant="secondary" onClick={onEditGameweeks}>
+                Edit gameweeks
+              </Button>
+            )}
             <Button
               size="sm"
               loading={finalize.isPending}
               disabled={!canFinalize}
-              title={canFinalize ? 'Freeze results for this month' : finalizeBlockedReason}
+              title={canFinalize ? 'Save the results for good' : finalizeBlockedReason}
               onClick={handleFinalize}
             >
               Finalize month

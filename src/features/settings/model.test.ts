@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_FDR,
   DEFAULT_LEAGUE,
+  parseCalendarSettings,
   parseFdrSettings,
   parseLeagueSettings,
   parseUpdateMeta,
@@ -28,22 +29,18 @@ describe('parseFdrSettings', () => {
 
   it('converts Firestore string map keys to team codes and drops invalid positions', () => {
     const parsed = parseFdrSettings({
-      lastSeasonWeight: 0.25,
       lastSeasonLabel: '2026/27',
       lastSeasonPositions: { '3': 2, '7': 99, x: 4 },
     });
     expect(parsed).toEqual({
       gameweekWeights: DEFAULT_FDR.gameweekWeights,
-      lastSeasonWeight: 0.25,
       lastSeasonLabel: '2026/27',
       lastSeasonPositions: { 3: 2 },
     });
   });
 
-  it('rejects weights outside 0–1', () => {
-    expect(parseFdrSettings({ lastSeasonWeight: 1.5 }).lastSeasonWeight).toBe(
-      DEFAULT_FDR.lastSeasonWeight,
-    );
+  it('ignores a legacy stored lastSeasonWeight (position weights are automatic now)', () => {
+    expect(parseFdrSettings({ lastSeasonWeight: 0.5 })).not.toHaveProperty('lastSeasonWeight');
   });
 
   it('keeps valid gameweek weights and falls back when they do not sum to 10', () => {
@@ -68,5 +65,20 @@ describe('parseUpdateMeta', () => {
     expect(meta.updatedAt?.toISOString()).toBe('2026-11-12T03:00:00.000Z');
     expect(meta.updatedBy).toBe('admin@example.com');
     expect(parseUpdateMeta(undefined)).toEqual({ updatedAt: null, updatedBy: null });
+  });
+});
+
+describe('parseCalendarSettings', () => {
+  it('keeps valid gameweek → month moves and drops the rest', () => {
+    expect(
+      parseCalendarSettings({
+        season: '2026/27',
+        gameweekMonths: { '1': '2026-09', '2': '2026-09', '40': '2026-09', '3': 'soon' },
+      }),
+    ).toEqual({ season: '2026/27', gameweekMonths: { 1: '2026-09', 2: '2026-09' } });
+  });
+
+  it('defaults to no moves', () => {
+    expect(parseCalendarSettings(undefined)).toEqual({ season: null, gameweekMonths: {} });
   });
 });

@@ -36,6 +36,9 @@ function fplApiPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), fplApiPlugin()],
+  // Fixed ports (not Vite's 5173/4173) so this app doesn't clash with other local Vite projects.
+  server: { port: 5180, strictPort: true },
+  preview: { port: 4180, strictPort: true },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

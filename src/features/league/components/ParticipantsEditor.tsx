@@ -100,7 +100,7 @@ export function ParticipantsEditor({
 
   return (
     <Card
-      title={`Participants — ${formatMonthLabel(monthKey)}`}
+      title={`Players — ${formatMonthLabel(monthKey)}`}
       description={
         league.data ? `From “${league.data.leagueName}” (league ${leagueId})` : undefined
       }
@@ -128,7 +128,7 @@ export function ParticipantsEditor({
         </>
       }
     >
-      {league.isPending && <LoadingState label="Loading league members…" />}
+      {league.isPending && <LoadingState label="Loading players…" />}
       {league.isError && <ErrorState error={league.error} onRetry={() => void league.refetch()} />}
 
       {league.data && (
@@ -137,8 +137,7 @@ export function ParticipantsEditor({
             <div className="mr-auto min-w-0">
               <p className="font-medium text-slate-800">Penalty-free points ({gwLabel} only)</p>
               <p className="text-xs text-slate-500">
-                Transfer hits up to this many points are waived, e.g. 8 turns −4 into 0 and −16 into
-                −8. Default 0.
+                Hits up to this amount are free. Example: 8 → −4 becomes 0, −16 becomes −8.
               </p>
             </div>
             <label className="sr-only" htmlFor="bulk-allowance">
@@ -184,7 +183,7 @@ export function ParticipantsEditor({
                       </span>
                       <span className="block truncate text-xs text-slate-500">
                         {row.entryName}
-                        {row.departed && ' · no longer in the league'}
+                        {row.departed && ' · left the league'}
                         {row.totalPoints !== null && ` · ${row.totalPoints} pts`}
                       </span>
                     </span>
@@ -212,7 +211,7 @@ export function ParticipantsEditor({
             })}
             {rows.length === 0 && (
               <li className="px-3 py-6 text-center text-sm text-slate-500">
-                This league has no members.
+                No players in this league.
               </li>
             )}
           </ul>
@@ -232,7 +231,7 @@ export function ParticipantsEditor({
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-600">
-          <strong>{selected.size}</strong> selected · pot{' '}
+          <strong>{selected.size}</strong> selected · prize pool{' '}
           <strong>{formatGold(selected.size * LEAGUE_RULES.entryFee)}</strong>
         </p>
         <div className="flex gap-2">
@@ -240,7 +239,7 @@ export function ParticipantsEditor({
             Cancel
           </Button>
           <Button onClick={handleSave} loading={save.isPending} disabled={!league.data}>
-            Save participants
+            Save
           </Button>
         </div>
       </div>

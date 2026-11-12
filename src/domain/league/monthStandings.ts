@@ -20,7 +20,12 @@ export interface MonthStandingsInput {
 export interface GameweekCell {
   /** Null when the gameweek has not started, or the manager has no score for it. */
   score: GameweekScore | null;
-  /** Points after (adjusted) transfer hits; null when the gameweek has not started. */
+  /**
+   * Gross FPL points (before transfer hits) — the GW ranking uses these, so a manager who took
+   * hits still has a fair shot at the GW prize. Null when the gameweek has not started.
+   */
+  points: number | null;
+  /** Points after (adjusted) transfer hits — what counts towards the month total. */
   net: number | null;
   /** Transfer hit actually deducted, after any penalty-free allowance. */
   transferCost: number;
@@ -31,6 +36,7 @@ export interface GameweekCell {
   prize: number;
 }
 
+/** Month totals. `points` is the NET total (after hits) — the month ranking uses it. */
 export interface MonthTotals extends RankingScore {
   /** Transfer hits deducted this month (after allowances). */
   transferCost: number;
@@ -92,6 +98,7 @@ function emptyScore(gameweek: number): GameweekScore {
 }
 
 const PENDING_CELL: Omit<GameweekCell, 'score'> = {
+  points: null,
   net: null,
   transferCost: 0,
   waivedCost: 0,
@@ -133,6 +140,7 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
       );
       const cell: GameweekCell = {
         score: recorded,
+        points: score.points,
         net: score.points - transferCost,
         transferCost,
         waivedCost: score.transferCost - transferCost,
@@ -167,8 +175,9 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
       rows,
       (row): RankingScore => {
         const cell = row.gameweeks[gameweek.id];
+        // GW ranking is on GROSS points (hits ignored); only the month uses net points.
         return {
-          points: cell?.net ?? 0,
+          points: cell?.points ?? 0,
           chipsUsed: cell?.score?.chip ? 1 : 0,
           benchPoints: cell?.score?.benchPoints ?? 0,
         };

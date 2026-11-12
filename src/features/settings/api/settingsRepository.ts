@@ -1,11 +1,14 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { firestore, requireFirestore } from '@/lib/firebase/client';
 import {
+  DEFAULT_CALENDAR,
   DEFAULT_FDR,
   DEFAULT_LEAGUE,
+  parseCalendarSettings,
   parseFdrSettings,
   parseLeagueSettings,
   parseUpdateMeta,
+  type CalendarSettings,
   type FdrSettings,
   type LeagueSettings,
   type StoredFdrSettings,
@@ -45,9 +48,28 @@ export async function saveFdrSettings(settings: FdrSettings, adminEmail: string)
   );
   await setDoc(doc(requireFirestore(), SETTINGS, 'fdr'), {
     gameweekWeights: settings.gameweekWeights,
-    lastSeasonWeight: settings.lastSeasonWeight,
     lastSeasonLabel: settings.lastSeasonLabel.trim(),
     lastSeasonPositions: positions,
+    updatedAt: serverTimestamp(),
+    updatedBy: adminEmail,
+  });
+}
+
+export async function fetchCalendarSettings(): Promise<CalendarSettings> {
+  if (!firestore) return DEFAULT_CALENDAR;
+  const snapshot = await getDoc(doc(firestore, SETTINGS, 'calendar'));
+  return parseCalendarSettings(snapshot.data());
+}
+
+export async function saveCalendarSettings(
+  settings: CalendarSettings,
+  adminEmail: string,
+): Promise<void> {
+  await setDoc(doc(requireFirestore(), SETTINGS, 'calendar'), {
+    season: settings.season ?? '',
+    gameweekMonths: Object.fromEntries(
+      Object.entries(settings.gameweekMonths).map(([id, month]) => [String(id), month]),
+    ),
     updatedAt: serverTimestamp(),
     updatedBy: adminEmail,
   });

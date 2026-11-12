@@ -37,7 +37,13 @@
     @apply bg-slate-50;
   }
   .data-table :where(tfoot td) {
-    @apply whitespace-nowrap border-t-2 border-slate-300 px-3 py-2 font-semibold;
+    @apply whitespace-nowrap px-3 py-2 font-semibold;
+  }
+  .data-table :where(tfoot tr:first-child td) {
+    @apply border-t-2 border-slate-300;
+  }
+  .data-table :where(tfoot tr + tr td) {
+    @apply border-t border-slate-200;
   }
   .num {
     @apply text-right tabular-nums;

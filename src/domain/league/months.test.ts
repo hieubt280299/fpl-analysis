@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyMonthGameweekEdit,
+  editableGameweeks,
   formatMonthLabel,
   groupGameweeksByMonth,
   isMonthKey,
@@ -74,5 +76,93 @@ describe('helpers', () => {
   it('formats month labels', () => {
     expect(formatMonthLabel('2026-11')).toBe('November 2026');
     expect(formatMonthLabel('2026-11', 'short')).toBe('Nov 2026');
+  });
+});
+
+describe('gameweek overrides', () => {
+  // August has only 2 GWs; an admin may merge them into September.
+  const auto = new Map<number, string>([
+    [1, '2026-08'],
+    [2, '2026-08'],
+    [3, '2026-09'],
+    [4, '2026-09'],
+    [5, '2026-09'],
+    [6, '2026-10'],
+    [7, '2026-10'],
+  ]);
+  const deadlines: Record<number, string> = {
+    1: '2026-08-21T17:30:00Z',
+    2: '2026-08-28T17:30:00Z',
+    3: '2026-09-04T17:30:00Z',
+    4: '2026-09-12T12:30:00Z',
+    5: '2026-09-18T17:30:00Z',
+    6: '2026-10-10T10:00:00Z',
+    7: '2026-10-17T10:00:00Z',
+  };
+  const gws = Object.entries(deadlines).map(([id, deadline]) => ({ id: Number(id), deadline }));
+  const group = (overrides: Record<number, string> = {}) =>
+    groupGameweeksByMonth(gws, 'Asia/Ho_Chi_Minh', overrides);
+
+  it('applies overrides when grouping', () => {
+    expect(group({ 1: '2026-09', 2: '2026-09' })).toEqual([
+      { key: '2026-09', gameweekIds: [1, 2, 3, 4, 5] },
+      { key: '2026-10', gameweekIds: [6, 7] },
+    ]);
+  });
+
+  it('pulls the previous month’s gameweeks into this month', () => {
+    const result = applyMonthGameweekEdit({
+      months: group(),
+      monthKey: '2026-09',
+      selected: [1, 2, 3, 4, 5],
+      automatic: auto,
+      overrides: {},
+    });
+    expect(result).toEqual({ overrides: { 1: '2026-09', 2: '2026-09' } });
+  });
+
+  it('pushes a removed last gameweek to the next month, and undoing clears the override', () => {
+    const pushed = applyMonthGameweekEdit({
+      months: group(),
+      monthKey: '2026-09',
+      selected: [3, 4],
+      automatic: auto,
+      overrides: {},
+    });
+    expect(pushed).toEqual({ overrides: { 5: '2026-10' } });
+    if (!('overrides' in pushed)) throw new Error('expected overrides');
+    const undone = applyMonthGameweekEdit({
+      months: group(pushed.overrides),
+      monthKey: '2026-09',
+      selected: [3, 4, 5],
+      automatic: auto,
+      overrides: pushed.overrides,
+    });
+    expect(undone).toEqual({ overrides: {} });
+  });
+
+  it('rejects gaps, empty selections and far-away gameweeks', () => {
+    const base = { months: group(), monthKey: '2026-09', automatic: auto, overrides: {} };
+    expect(applyMonthGameweekEdit({ ...base, selected: [3, 5] })).toMatchObject({
+      error: expect.stringMatching(/no gaps/),
+    });
+    expect(applyMonthGameweekEdit({ ...base, selected: [] })).toMatchObject({
+      error: expect.stringMatching(/at least one/),
+    });
+    expect(
+      applyMonthGameweekEdit({ ...base, monthKey: '2026-08', selected: [1, 2, 3, 4, 5, 6] }),
+    ).toMatchObject({ error: expect.stringMatching(/months next to it/) });
+  });
+
+  it('never touches finalized months', () => {
+    const locked = new Set(['2026-08']);
+    const base = { months: group(), automatic: auto, overrides: {}, locked };
+    expect(
+      applyMonthGameweekEdit({ ...base, monthKey: '2026-09', selected: [2, 3, 4, 5] }),
+    ).toMatchObject({ error: expect.stringMatching(/months next to it/) });
+    expect(applyMonthGameweekEdit({ ...base, monthKey: '2026-08', selected: [1] })).toMatchObject({
+      error: expect.stringMatching(/finalized/),
+    });
+    expect(editableGameweeks(group(), '2026-09', locked).candidates).toEqual([3, 4, 5, 6, 7]);
   });
 });

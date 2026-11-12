@@ -11,7 +11,7 @@ import { isValidLeagueId, type LeagueSettings } from '../model';
 export function SettingsPage() {
   return (
     <>
-      <PageHeader title="Settings" description="League-wide configuration. Admins only." />
+      <PageHeader title="Settings" />
       <RequireAdmin>
         <LeagueSettingsSection />
       </RequireAdmin>
@@ -69,10 +69,7 @@ function LeagueSettingsForm({ saved }: { saved: LeagueSettings }) {
   };
 
   return (
-    <Card
-      title="Mini-league"
-      description="Which FPL classic league to manage, and how gameweeks are grouped into months."
-    >
+    <Card title="Mini-league" info="The FPL league to use, and the time zone for GW deadlines.">
       <form onSubmit={(e) => void handleSubmit(e)} className="grid max-w-xl gap-5">
         <div>
           <label htmlFor="leagueId" className="label">
@@ -87,8 +84,7 @@ function LeagueSettingsForm({ saved }: { saved: LeagueSettings }) {
             required
           />
           <p className="mt-1 text-xs text-slate-500">
-            From the league URL: fantasy.premierleague.com/leagues/<strong>758527</strong>
-            /standings/c
+            The number in the league link, e.g. …/leagues/<strong>758527</strong>/standings/c
           </p>
         </div>
 
@@ -110,13 +106,13 @@ function LeagueSettingsForm({ saved }: { saved: LeagueSettings }) {
             ))}
           </datalist>
           <p className="mt-1 text-xs text-slate-500">
-            A gameweek belongs to the month its deadline falls in, in this time zone.
+            A GW belongs to the month of its deadline in this time zone.
           </p>
         </div>
 
         {formError && <Alert tone="error">{formError}</Alert>}
         {save.isError && <Alert tone="error">Save failed: {errorMessage(save.error)}</Alert>}
-        {savedLeagueName && <Alert tone="success">Saved. Managing “{savedLeagueName}”.</Alert>}
+        {savedLeagueName && <Alert tone="success">Saved: “{savedLeagueName}”.</Alert>}
 
         <div>
           <Button type="submit" loading={verifying || save.isPending}>

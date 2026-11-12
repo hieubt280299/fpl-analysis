@@ -1,11 +1,7 @@
-import {
-  DEFAULT_LAST_SEASON,
-  FDR_DEFAULT_GAMEWEEK_WEIGHTS,
-  FDR_DEFAULT_LAST_SEASON_WEIGHT,
-} from '@/config/fdr';
+import { DEFAULT_LAST_SEASON, FDR_DEFAULT_GAMEWEEK_WEIGHTS } from '@/config/fdr';
 import { DEFAULT_LEAGUE_SETTINGS } from '@/config/league';
 import { validateGameweekWeights } from '@/domain/fdr';
-import { isValidTimeZone } from '@/domain/league';
+import { isMonthKey, isValidTimeZone, type MonthKey } from '@/domain/league';
 
 /** Firestore `settings/league`. */
 export interface LeagueSettings {
@@ -13,13 +9,14 @@ export interface LeagueSettings {
   timeZone: string;
 }
 
-/** Firestore `settings/fdr` (editable fields). */
+/**
+ * Firestore `settings/fdr` (editable fields). Position weights are not stored: they follow the
+ * number of finished gameweeks automatically (see positionWeightsAfter).
+ */
 export interface FdrSettings {
   /** Weight per gameweek of the 5-GW window, nearest first. Always sums to 10. */
   gameweekWeights: number[];
-  /** Weight of last season's position (0–1). This season's weight is `1 - lastSeasonWeight`. */
-  lastSeasonWeight: number;
-  /** Season the positions refer to, e.g. "2025/26" (display only). */
+  /** Season the positions refer to, e.g. "2025/26". Set automatically when an admin saves. */
   lastSeasonLabel: string;
   /** Final position by FPL team code. Missing teams (promoted) use the default position. */
   lastSeasonPositions: Record<number, number>;
@@ -33,11 +30,22 @@ export interface UpdateMeta {
 
 export type StoredFdrSettings = FdrSettings & UpdateMeta;
 
+/**
+ * Firestore `settings/calendar`: gameweeks an admin moved to the previous/next month.
+ * Only applies to the season it was saved for (gameweek ids repeat every season).
+ */
+export interface CalendarSettings {
+  season: string | null;
+  /** Gameweek id → month key, only for gameweeks moved away from their deadline month. */
+  gameweekMonths: Record<number, MonthKey>;
+}
+
+export const DEFAULT_CALENDAR: CalendarSettings = { season: null, gameweekMonths: {} };
+
 export const DEFAULT_LEAGUE: LeagueSettings = { ...DEFAULT_LEAGUE_SETTINGS };
 
 export const DEFAULT_FDR: FdrSettings = {
   gameweekWeights: [...FDR_DEFAULT_GAMEWEEK_WEIGHTS],
-  lastSeasonWeight: FDR_DEFAULT_LAST_SEASON_WEIGHT,
   lastSeasonLabel: DEFAULT_LAST_SEASON.label,
   lastSeasonPositions: { ...DEFAULT_LAST_SEASON.positions },
 };
@@ -89,7 +97,6 @@ function parseGameweekWeights(value: unknown): number[] {
 /** Tolerant parse of `settings/fdr`: invalid or missing fields fall back to defaults. */
 export function parseFdrSettings(data: unknown): FdrSettings {
   if (!isRecord(data)) return DEFAULT_FDR;
-  const weight = data.lastSeasonWeight;
   const positions: Record<number, number> = {};
   if (isRecord(data.lastSeasonPositions)) {
     for (const [code, position] of Object.entries(data.lastSeasonPositions)) {
@@ -99,14 +106,31 @@ export function parseFdrSettings(data: unknown): FdrSettings {
   }
   return {
     gameweekWeights: parseGameweekWeights(data.gameweekWeights),
-    lastSeasonWeight:
-      typeof weight === 'number' && weight >= 0 && weight <= 1
-        ? weight
-        : DEFAULT_FDR.lastSeasonWeight,
     lastSeasonLabel:
       typeof data.lastSeasonLabel === 'string' ? data.lastSeasonLabel : DEFAULT_FDR.lastSeasonLabel,
     lastSeasonPositions: isRecord(data.lastSeasonPositions)
       ? positions
       : DEFAULT_FDR.lastSeasonPositions,
   };
+}
+
+/** Tolerant parse of `settings/calendar`. */
+export function parseCalendarSettings(data: unknown): CalendarSettings {
+  if (!isRecord(data)) return DEFAULT_CALENDAR;
+  const gameweekMonths: Record<number, MonthKey> = {};
+  if (isRecord(data.gameweekMonths)) {
+    for (const [id, month] of Object.entries(data.gameweekMonths)) {
+      const gw = Number(id);
+      if (
+        Number.isInteger(gw) &&
+        gw >= 1 &&
+        gw <= 38 &&
+        typeof month === 'string' &&
+        isMonthKey(month)
+      ) {
+        gameweekMonths[gw] = month;
+      }
+    }
+  }
+  return { season: typeof data.season === 'string' ? data.season : null, gameweekMonths };
 }

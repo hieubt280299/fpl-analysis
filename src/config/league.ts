@@ -37,3 +37,12 @@ export const COMMON_TIME_ZONES = [
   'Australia/Sydney',
   'America/New_York',
 ] as const;
+
+/** While a match of the month is being played, points refresh this often (Points & Prizes). */
+export const LIVE_REFRESH_INTERVAL_MS = 90_000;
+
+/**
+ * A match counts as live from kickoff until FPL marks it finished — but never longer than this
+ * after kickoff, so auto-refresh still stops if FPL's "finished" flag arrives late.
+ */
+export const MAX_MATCH_DURATION_MS = 150 * 60_000;

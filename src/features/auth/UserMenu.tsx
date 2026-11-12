@@ -1,6 +1,6 @@
 import { FirebaseError } from 'firebase/app';
 import { useState } from 'react';
-import { Badge, Button } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { useAuth } from './useAuth';
 
 const IGNORED_SIGN_IN_ERRORS = new Set([
@@ -9,7 +9,7 @@ const IGNORED_SIGN_IN_ERRORS = new Set([
 ]);
 
 export function UserMenu() {
-  const { status, user, isAdmin, isAvailable, signIn, signOut } = useAuth();
+  const { status, user, isAvailable, signIn, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
 
   if (!isAvailable) return null;
@@ -45,7 +45,6 @@ export function UserMenu() {
 
   return (
     <div className="flex items-center gap-2">
-      {isAdmin && <Badge tone="success">Admin</Badge>}
       <span
         className="hidden max-w-[12rem] truncate text-sm text-white/90 sm:inline"
         title={user.email ?? ''}

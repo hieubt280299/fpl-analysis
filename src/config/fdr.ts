@@ -5,13 +5,13 @@
  *   AVG = ROUND( (GW1*w1 + GW2*w2 + GW3*w3 + GW4*w4 + GW5*w5)
  *              * (0.8 + 0.01*LastSeasonPos*wLast + 0.01*ThisSeasonPos*wThis), 1 )
  * - w1..w5: admin-adjustable gameweek weights, must sum to 10 (default 2.6, 2.3, 2.0, 1.7, 1.4)
- * - wLast + wThis = 1 (admin-adjustable, default 0.1 / 0.9)
+ * - wThis = 10% per finished gameweek (0% before GW1, 100% from GW10 on); wLast = 1 − wThis
  * Lower AVG = easier run.
  *
  * ⚠️ Changing these changes every team's score. Update AGENT_GUIDE.md and src/domain/fdr/*.test.ts.
  */
 
-/** Number of upcoming gameweeks in the FDR window. */
+/** Number of upcoming gameweeks in the FDR window (fewer at the very end of the season). */
 export const FDR_WINDOW_SIZE = 5;
 
 /** Default weight per upcoming gameweek, nearest first (admin-adjustable). */
@@ -23,8 +23,11 @@ export const FDR_GAMEWEEK_WEIGHTS_TOTAL = 10;
 export const FDR_BASE_MULTIPLIER = 0.8;
 export const FDR_POSITION_COEFFICIENT = 0.01;
 
-/** Default weight of last season's position; this season's weight is always `1 - lastSeasonWeight`. */
-export const FDR_DEFAULT_LAST_SEASON_WEIGHT = 0.1;
+/**
+ * This season's position weight grows by this much per finished gameweek (capped at 1);
+ * last season's weight is the remainder. 0 finished → 0 / 1, 9 finished → 0.9 / 0.1.
+ */
+export const FDR_THIS_SEASON_WEIGHT_PER_GAMEWEEK = 0.1;
 
 /** Value used in the formula when a team has no fixture in a gameweek (blank GW). */
 export const FDR_BLANK_GAMEWEEK_VALUE = 6;

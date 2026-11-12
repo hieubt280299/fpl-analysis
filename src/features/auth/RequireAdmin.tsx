@@ -8,25 +8,12 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
 
   if (!isAvailable) {
     return (
-      <EmptyState title="Admin features are unavailable">
-        Firebase is not configured for this deployment. See README.md → “Firebase setup”.
-      </EmptyState>
+      <EmptyState title="Admin tools are off">Firebase is not set up. See README.md.</EmptyState>
     );
   }
-  if (status === 'loading') return <LoadingState label="Checking permissions…" />;
-  if (!user) {
-    return (
-      <EmptyState title="Admins only">Sign in with an admin Google account to continue.</EmptyState>
-    );
-  }
-  if (!isAdmin) {
-    return (
-      <EmptyState title="Not an admin">
-        {user.email} is not on the admin list. Ask an existing admin to add a document named{' '}
-        <code className="rounded bg-slate-100 px-1">{user.email?.toLowerCase()}</code> to the{' '}
-        <code className="rounded bg-slate-100 px-1">admins</code> collection.
-      </EmptyState>
-    );
+  if (status === 'loading') return <LoadingState label="Checking…" />;
+  if (!user || !isAdmin) {
+    return <EmptyState title="Admins only">Please sign in with an admin account.</EmptyState>;
   }
   return <>{children}</>;
 }

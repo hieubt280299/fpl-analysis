@@ -1,4 +1,4 @@
-import { sum } from '../shared/math';
+import { roundHalfAwayFromZero, sum } from '../shared/math';
 import type { PrizeRules } from './types';
 
 export interface PrizeStructure {
@@ -24,6 +24,18 @@ export function splitByRatio(amount: number, ratio: readonly number[]): number[]
 }
 
 /**
+ * Splits a prize by ratio with whole-number amounts where possible: every place except the last is
+ * rounded to the nearest whole number (half up) and the last place gets the remainder.
+ * e.g. 150 by [3, 1] → 112.5 / 37.5 → [113, 37].
+ */
+export function splitPrize(amount: number, ratio: readonly number[]): number[] {
+  const raw = splitByRatio(amount, ratio);
+  if (raw.length < 2) return raw;
+  const rounded = raw.slice(0, -1).map((v) => roundHalfAwayFromZero(v, 0));
+  return [...rounded, amount - sum(rounded)];
+}
+
+/**
  * Pot = participants × entry fee.
  * Month prize pool = pot × monthPoolShare (40%), split winner : runner-up = 3 : 1.
  * The remaining 60% is divided equally among the month's gameweeks, each split 3 : 1.
@@ -46,7 +58,7 @@ export function buildPrizeStructure(
     monthPool,
     gameweekPool,
     perGameweekPool,
-    gameweekPrizes: splitByRatio(perGameweekPool, rules.prizeSplit),
-    monthPrizes: splitByRatio(monthPool, rules.prizeSplit),
+    gameweekPrizes: splitPrize(perGameweekPool, rules.prizeSplit),
+    monthPrizes: splitPrize(monthPool, rules.prizeSplit),
   };
 }

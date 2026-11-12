@@ -3,12 +3,11 @@ import { FDR_BLANK_GAMEWEEK_VALUE, FDR_DEFAULT_GAMEWEEK_WEIGHTS } from '@/config
 import {
   buildFdrTable,
   cellValue,
-  clampWindowStart,
   createFdrFormula,
   fdrScore,
-  fdrWindow,
+  positionWeightsAfter,
+  upcomingWindow,
   validateGameweekWeights,
-  weightsFromLastSeason,
 } from './fdr';
 import type { Fixture, Team } from './types';
 
@@ -36,7 +35,8 @@ const SHEET: Array<[string, number, number, number[], number, number]> = [
   ["Nott'm Forest", 16, 19, [4, 4, 4, 2, 4], 36.1, 20],
 ];
 
-const DEFAULT_FORMULA = createFdrFormula(FDR_DEFAULT_GAMEWEEK_WEIGHTS, 0.1);
+// The sheet covered GW10–14, i.e. it was made with 9 gameweeks finished → weights 0.1 / 0.9.
+const DEFAULT_FORMULA = createFdrFormula(FDR_DEFAULT_GAMEWEEK_WEIGHTS, 9);
 
 describe('fdrScore', () => {
   it.each(SHEET)('%s matches the spreadsheet AVG', (_team, last, current, fdrs, expected) => {
@@ -52,30 +52,38 @@ describe('fdrScore', () => {
     expect(fdrScore([3, 2, 2, 3, 2], 4, 10, formula)).toBe(21.7);
   });
 
-  it('responds to admin-adjusted position weights', () => {
-    const equal = createFdrFormula(FDR_DEFAULT_GAMEWEEK_WEIGHTS, 0.5);
+  it('shifts the position weights as gameweeks finish', () => {
+    const equal = createFdrFormula(FDR_DEFAULT_GAMEWEEK_WEIGHTS, 5); // 50% / 50%
     // 24.3 * (0.8 + 0.01*4*0.5 + 0.01*10*0.5) = 24.3 * 0.87 = 21.141
     expect(fdrScore([3, 2, 2, 3, 2], 4, 10, equal)).toBe(21.1);
   });
 
   it('responds to admin-adjusted gameweek weights', () => {
-    const flat = createFdrFormula([2, 2, 2, 2, 2], 0.1);
+    const flat = createFdrFormula([2, 2, 2, 2, 2], 9);
     // (3+2+2+3+2)*2 = 24 → 24 * 0.894 = 21.456
     expect(fdrScore([3, 2, 2, 3, 2], 4, 10, flat)).toBe(21.5);
   });
 });
 
-describe('weightsFromLastSeason', () => {
-  it('always sums to exactly 1', () => {
-    for (const w of [0, 0.1, 0.15, 0.3, 0.7, 1]) {
-      const { lastSeason, thisSeason } = weightsFromLastSeason(w);
-      expect(lastSeason + thisSeason).toBe(1);
-    }
+describe('positionWeightsAfter', () => {
+  it('starts at 0% this season before GW1 and adds 10% per finished gameweek', () => {
+    expect(positionWeightsAfter(0)).toEqual({ lastSeason: 1, thisSeason: 0 });
+    expect(positionWeightsAfter(1)).toEqual({ lastSeason: 0.9, thisSeason: 0.1 });
+    expect(positionWeightsAfter(3)).toEqual({ lastSeason: 0.7, thisSeason: 0.3 });
+    expect(positionWeightsAfter(9)).toEqual({ lastSeason: 0.1, thisSeason: 0.9 });
   });
 
-  it('clamps out-of-range input', () => {
-    expect(weightsFromLastSeason(1.4)).toEqual({ lastSeason: 1, thisSeason: 0 });
-    expect(weightsFromLastSeason(-1)).toEqual({ lastSeason: 0, thisSeason: 1 });
+  it('reaches 100% this season after 10 gameweeks and stays there', () => {
+    expect(positionWeightsAfter(10)).toEqual({ lastSeason: 0, thisSeason: 1 });
+    expect(positionWeightsAfter(38)).toEqual({ lastSeason: 0, thisSeason: 1 });
+  });
+
+  it('always sums to exactly 1 and ignores invalid counts', () => {
+    for (let n = 0; n <= 38; n += 1) {
+      const { lastSeason, thisSeason } = positionWeightsAfter(n);
+      expect(lastSeason + thisSeason).toBe(1);
+    }
+    expect(positionWeightsAfter(-2)).toEqual({ lastSeason: 1, thisSeason: 0 });
   });
 });
 
@@ -83,13 +91,15 @@ describe('cellValue', () => {
   it('uses the difficulty of a single fixture', () => {
     expect(cellValue([{ difficulty: 4 }])).toBe(4);
   });
-  it('combines a double gameweek as 1 / (1/M1 + 1/M2)', () => {
-    expect(cellValue([{ difficulty: 2 }, { difficulty: 3 }])).toBeCloseTo(1.2, 12);
-    expect(cellValue([{ difficulty: 4 }, { difficulty: 4 }])).toBeCloseTo(2, 12);
-    expect(cellValue([{ difficulty: 3 }, { difficulty: 5 }])).toBeCloseTo(1.875, 12);
+  it('combines a double gameweek as 1 / (1/M1 + 1/M2), rounded to 1 decimal', () => {
+    expect(cellValue([{ difficulty: 2 }, { difficulty: 3 }])).toBe(1.2);
+    expect(cellValue([{ difficulty: 4 }, { difficulty: 4 }])).toBe(2);
+    expect(cellValue([{ difficulty: 3 }, { difficulty: 5 }])).toBe(1.9); // 1.875
+    expect(cellValue([{ difficulty: 2 }, { difficulty: 4 }])).toBe(1.3); // 1.333…
+    expect(cellValue([{ difficulty: 5 }, { difficulty: 5 }])).toBe(2.5);
   });
   it('extends to a triple gameweek', () => {
-    expect(cellValue([{ difficulty: 3 }, { difficulty: 3 }, { difficulty: 3 }])).toBeCloseTo(1, 12);
+    expect(cellValue([{ difficulty: 3 }, { difficulty: 3 }, { difficulty: 3 }])).toBe(1);
   });
   it('scores a blank gameweek as 6', () => {
     expect(FDR_BLANK_GAMEWEEK_VALUE).toBe(6);
@@ -112,13 +122,18 @@ describe('validateGameweekWeights', () => {
   });
 });
 
-describe('fdrWindow', () => {
-  it('returns five consecutive gameweeks', () => {
-    expect(fdrWindow(11, 38)).toEqual([11, 12, 13, 14, 15]);
+describe('upcomingWindow', () => {
+  it('returns the next five gameweeks from the next deadline', () => {
+    expect(upcomingWindow(11, 38)).toEqual([11, 12, 13, 14, 15]);
+    expect(upcomingWindow(1, 38)).toEqual([1, 2, 3, 4, 5]);
   });
-  it('keeps a full window at the end of the season', () => {
-    expect(clampWindowStart(37, 38)).toBe(34);
-    expect(fdrWindow(37, 38)).toEqual([34, 35, 36, 37, 38]);
+  it('never goes past the end of the season or back into finished gameweeks', () => {
+    expect(upcomingWindow(36, 38)).toEqual([36, 37, 38]);
+    expect(upcomingWindow(38, 38)).toEqual([38]);
+  });
+  it('is empty when no gameweek is upcoming', () => {
+    expect(upcomingWindow(null, 38)).toEqual([]);
+    expect(upcomingWindow(39, 38)).toEqual([]);
   });
 });
 
@@ -189,7 +204,7 @@ describe('buildFdrTable', () => {
       formula: DEFAULT_FORMULA,
     });
     expect(row?.cells[0]?.fixtures).toHaveLength(2);
-    expect(row?.cells[0]?.value).toBeCloseTo(1.875, 12); // 1 / (1/3 + 1/5)
+    expect(row?.cells[0]?.value).toBe(1.9); // 1 / (1/3 + 1/5) = 1.875 → 1.9
     expect(row?.cells[1]?.fixtures).toHaveLength(0);
     expect(row?.cells[1]?.value).toBe(FDR_BLANK_GAMEWEEK_VALUE);
   });

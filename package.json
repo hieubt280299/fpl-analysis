@@ -23,7 +23,9 @@
     "deploy:rules": "firebase deploy --only firestore"
   },
   "dependencies": {
+    "@tanstack/query-sync-storage-persister": "^5.107.1",
     "@tanstack/react-query": "^5.107.1",
+    "@tanstack/react-query-persist-client": "^5.107.1",
     "firebase": "^12.19.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

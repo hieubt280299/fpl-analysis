@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import type { FdrCell, FdrRow, LeagueTableRow, PositionSource, Team } from '@/domain/fdr';
-import { Card, cn } from '@/components/ui';
+import { Card, cn, SortHeader } from '@/components/ui';
 import { fdrCellClass, heatScale } from '../utils/colors';
 import {
   DEFAULT_FDR_SORT,
@@ -23,26 +23,24 @@ function signed(n: number): string {
   return n > 0 ? `+${n}` : String(n);
 }
 
-function round2(n: number): string {
-  return String(Math.round(n * 100) / 100);
-}
-
 function FixtureCell({ cell, teamsById }: { cell: FdrCell; teamsById: ReadonlyMap<number, Team> }) {
   const isBlank = cell.fixtures.length === 0;
   const lines = cell.fixtures.map((f) => {
     const opp = teamsById.get(f.opponentId);
-    return `${opp?.name ?? '?'} (${f.isHome ? 'home' : 'away'}) — difficulty ${f.difficulty}`;
+    return `${opp?.name ?? '?'} (${f.isHome ? 'home' : 'away'}): ${f.difficulty}`;
   });
   if (cell.fixtures.length > 1) {
     const parts = cell.fixtures.map((f) => `1/${f.difficulty}`).join(' + ');
-    lines.push(`Double GW: 1 / (${parts}) = ${round2(cell.value)}`);
+    lines.push(`Double GW: 1 ÷ (${parts}) = ${cell.value.toFixed(1)}`);
   }
-  const title = isBlank ? `GW${cell.gameweek}: blank — counts as ${cell.value}` : lines.join('\n');
+  const title = isBlank
+    ? `No match in GW${cell.gameweek} (counts as ${cell.value})`
+    : lines.join('\n');
 
   return (
     <td className={cn('!px-1.5 text-center', fdrCellClass(cell.value, isBlank))} title={title}>
       {isBlank ? (
-        <span className="text-xs font-semibold">BLANK</span>
+        <span className="text-xs font-semibold">NO MATCH</span>
       ) : (
         <div className="space-y-0.5">
           {cell.fixtures.map((f) => (
@@ -56,51 +54,12 @@ function FixtureCell({ cell, teamsById }: { cell: FdrCell; teamsById: ReadonlyMa
           ))}
           {cell.fixtures.length > 1 && (
             <div className="text-[10px] font-semibold uppercase opacity-75">
-              DGW = {round2(cell.value)}
+              DGW = {cell.value.toFixed(1)}
             </div>
           )}
         </div>
       )}
     </td>
-  );
-}
-
-function SortableHeader({
-  sortKey,
-  sort,
-  onSort,
-  align = 'right',
-  title,
-  className,
-  children,
-}: {
-  sortKey: FdrSortKey;
-  sort: FdrSort;
-  onSort: (key: FdrSortKey) => void;
-  align?: 'left' | 'right' | 'center';
-  title?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  const active = sort.key === sortKey;
-  const ariaSort = active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none';
-  return (
-    <th aria-sort={ariaSort} className={cn('!p-0', className)} title={title}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        className={cn(
-          'flex w-full items-center gap-1 px-3 py-2 uppercase hover:bg-white/10 focus-visible:ring-inset',
-          align === 'right' && 'justify-end',
-          align === 'center' && 'justify-center',
-        )}
-      >
-        {children}
-        <span aria-hidden="true" className={cn('text-[10px]', !active && 'opacity-40')}>
-          {active ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
   );
 }
 
@@ -113,7 +72,7 @@ export function FdrTable({
   positionSource,
 }: Props) {
   const [requestedSort, setSort] = useState<FdrSort>(DEFAULT_FDR_SORT);
-  // A gameweek column that scrolled out of the window falls back to the default order.
+  // A gameweek column that is no longer in the window falls back to the default order.
   const sort =
     typeof requestedSort.key === 'number' && !gameweekIds.includes(requestedSort.key)
       ? DEFAULT_FDR_SORT
@@ -123,7 +82,7 @@ export function FdrTable({
   const sortedRows = useMemo(() => sortFdrRows(rows, sort), [rows, sort]);
   const heat = useMemo(() => heatScale(rows.map((r) => r.score)), [rows]);
   const tableByTeam = useMemo(() => new Map(leagueTable.map((r) => [r.team.id, r])), [leagueTable]);
-  const header = { sort, onSort };
+  const header = { activeKey: sort.key, direction: sort.direction, onSort };
 
   return (
     <Card flush>
@@ -131,43 +90,38 @@ export function FdrTable({
         <table className="data-table">
           <thead>
             <tr>
-              <SortableHeader {...header} sortKey="avg" title="Rank by AVG (ties share a rank)">
+              <SortHeader {...header} sortKey="avg" title="Rank by AVG">
                 Rank
-              </SortableHeader>
-              <SortableHeader
-                {...header}
-                sortKey="team"
-                align="left"
-                className="sticky left-0 z-10"
-              >
+              </SortHeader>
+              <SortHeader {...header} sortKey="team" align="left" className="sticky left-0 z-10">
                 Team
-              </SortableHeader>
-              <SortableHeader
+              </SortHeader>
+              <SortHeader
                 {...header}
                 sortKey="lastSeason"
-                title={`Final position in ${lastSeasonLabel}`}
+                title={`Final position ${lastSeasonLabel}`}
               >
                 Last season
-              </SortableHeader>
-              <SortableHeader
+              </SortHeader>
+              <SortHeader
                 {...header}
                 sortKey="thisSeason"
                 title={
                   positionSource === 'official'
-                    ? 'Current position — official table from FPL'
-                    : 'Current position — calculated from finished matches'
+                    ? 'Position now (from FPL)'
+                    : 'Position now (worked out from results)'
                 }
               >
                 This season
-              </SortableHeader>
+              </SortHeader>
               {gameweekIds.map((gw) => (
-                <SortableHeader key={gw} {...header} sortKey={gw} align="center">
+                <SortHeader key={gw} {...header} sortKey={gw} align="center">
                   GW{gw}
-                </SortableHeader>
+                </SortHeader>
               ))}
-              <SortableHeader {...header} sortKey="avg">
+              <SortHeader {...header} sortKey="avg">
                 AVG
-              </SortableHeader>
+              </SortHeader>
             </tr>
           </thead>
           <tbody>
@@ -195,7 +149,7 @@ export function FdrTable({
                   <td
                     className="num font-semibold"
                     style={{ backgroundColor: heat(row.score) }}
-                    title={`Unrounded: ${row.rawScore.toFixed(3)}`}
+                    title={`Exact: ${row.rawScore.toFixed(3)}`}
                   >
                     {row.score.toFixed(1)}
                   </td>

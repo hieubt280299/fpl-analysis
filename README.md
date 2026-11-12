@@ -14,7 +14,7 @@ Rules, architecture and coding constraints: see [AGENT_GUIDE.md](AGENT_GUIDE.md)
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # http://localhost:5180
 ```
 
 Without Firebase the app runs read-only with default settings: the FDR table works fully, and the
@@ -51,8 +51,8 @@ Sign in with your admin Google account, then:
 1. **Settings** → check the league id (default 758527).
 2. **Mini-league** → _Choose participants_ for the current month. Optionally set penalty-free
    points for the month's first GW.
-3. **Fixture difficulty** → _Formula settings_ → check the GW weights (sum 10), the position weights
-   and last season's table.
+3. **Fixture difficulty** → _Formula settings_ → check the GW weights (sum 10) and last season's
+   table. (Position weights are automatic: this season counts 10% per finished GW.)
 
 ### Local development with emulators
 

@@ -1,6 +1,7 @@
 import type {
   FplBootstrapResponse,
   FplEntryHistoryResponse,
+  FplEventStatusResponse,
   FplFixture,
   FplLeagueStandingsResponse,
 } from './types';
@@ -72,6 +73,10 @@ async function fplGet<T>(path: string, params: QueryParams, signal?: AbortSignal
 export const fplApi = {
   bootstrap: (signal?: AbortSignal) =>
     fplGet<FplBootstrapResponse>('bootstrap-static/', {}, signal),
+
+  /** Processing state of the current gameweek (live / bonus added / tables updating). */
+  eventStatus: (signal?: AbortSignal) =>
+    fplGet<FplEventStatusResponse>('event-status/', {}, signal),
 
   /** Every fixture of the season (past and future). */
   fixtures: (signal?: AbortSignal) => fplGet<FplFixture[]>('fixtures/', {}, signal),
