@@ -19,6 +19,8 @@ export interface MonthSnapshot {
   /** Keyed by entry id (stored as string keys in Firestore). */
   scores: Record<number, GameweekScore[]>;
   rules: PrizeRules;
+  /** FPL league name when finalized — kept because FPL removes old leagues each summer. */
+  leagueName?: string;
 }
 
 /** Firestore `months/{YYYY-MM}`. */
@@ -120,6 +122,9 @@ function parseSnapshot(value: unknown): MonthSnapshot | null {
   const rules = isRecord(value.rules) ? value.rules : {};
   return {
     finalizedAt: typeof value.finalizedAt === 'string' ? value.finalizedAt : '',
+    ...(typeof value.leagueName === 'string' && value.leagueName
+      ? { leagueName: value.leagueName }
+      : {}),
     gameweeks: Array.isArray(value.gameweeks)
       ? value.gameweeks.map(parseGameweek).filter((g): g is Gameweek => g !== null)
       : [],

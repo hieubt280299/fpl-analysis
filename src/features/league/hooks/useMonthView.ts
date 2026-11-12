@@ -19,6 +19,7 @@ import {
   useEntryHistories,
   useEventStatus,
   useFixtures,
+  useLeagueMembers,
   useSeasonData,
 } from '@/lib/fpl/queries';
 import { useNow } from '@/utils/useNow';
@@ -177,6 +178,12 @@ export function useMonthView(monthKey: MonthKey) {
   const histories = useEntryHistories(entryIds, needsLiveScores, liveInterval);
   const eventStatus = useEventStatus();
 
+  // The league's real name from FPL (same standings call the players list uses, so it is shared
+  // and cached). Finalized months keep the name they were saved with.
+  const savedLeagueName = snapshot?.leagueName ?? null;
+  const league = useLeagueMembers(doc?.leagueId || monthOptions.leagueId, !savedLeagueName);
+  const leagueName = savedLeagueName ?? league.data?.leagueName ?? null;
+
   const scores = snapshot ? snapshot.scores : histories.scores;
   const rules = snapshot?.rules ?? CURRENT_RULES;
 
@@ -212,8 +219,9 @@ export function useMonthView(monthKey: MonthKey) {
         ]),
       ),
       rules,
+      ...(leagueName ? { leagueName } : {}),
     };
-  }, [gameweeks, participants, scores, rules]);
+  }, [gameweeks, participants, scores, rules, leagueName]);
 
   // A finalized month renders from its snapshot, so FPL being unavailable must not block it.
   const blockingError = monthOptions.error ?? monthDoc.error;
@@ -228,6 +236,8 @@ export function useMonthView(monthKey: MonthKey) {
     },
     monthDoc: doc,
     isFinalized: snapshot !== null,
+    /** The FPL league's name (e.g. "FPLừa 26/27"); null while loading or if FPL is unreachable. */
+    leagueName,
     eventStatus: eventStatus.data ?? null,
     refreshError,
     /** When the oldest FPL data on screen was fetched. */

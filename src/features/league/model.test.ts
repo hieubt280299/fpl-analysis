@@ -59,9 +59,11 @@ describe('parseMonthDoc', () => {
           '5': [{ gameweek: 10, points: 50, transferCost: 4, benchPoints: 2, chip: null }],
         },
         rules: { entryFee: 200, monthPoolShare: 0.4, prizeSplit: [3, 1] },
+        leagueName: 'FPLừa 26/27',
       },
     });
     expect(doc?.status).toBe('finalized');
+    expect(doc?.snapshot?.leagueName).toBe('FPLừa 26/27');
     expect(doc?.snapshot?.scores[5]?.[0]?.transferCost).toBe(4);
     expect(doc?.snapshot?.rules.prizeSplit).toEqual([3, 1]);
   });

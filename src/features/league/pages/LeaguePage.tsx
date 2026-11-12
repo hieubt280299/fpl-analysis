@@ -70,7 +70,7 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
 
   const header = (
     <PageHeader
-      title={`Mini-league · ${formatMonthLabel(monthKey)}`}
+      title={`${view.leagueName ?? 'Mini-league'} · ${formatMonthLabel(monthKey)}`}
       actions={
         <MonthPicker
           options={view.options}
