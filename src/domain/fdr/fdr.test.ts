@@ -6,6 +6,7 @@ import {
   createFdrFormula,
   fdrScore,
   positionWeightsAfter,
+  positionWeightsFromShare,
   upcomingWindow,
   validateGameweekWeights,
 } from './fdr';
@@ -84,6 +85,20 @@ describe('positionWeightsAfter', () => {
       expect(lastSeason + thisSeason).toBe(1);
     }
     expect(positionWeightsAfter(-2)).toEqual({ lastSeason: 1, thisSeason: 0 });
+  });
+});
+
+describe('positionWeightsFromShare', () => {
+  it('gives this season the rest of a chosen last-season share', () => {
+    expect(positionWeightsFromShare(0.3)).toEqual({ lastSeason: 0.3, thisSeason: 0.7 });
+    expect(positionWeightsFromShare(0)).toEqual({ lastSeason: 0, thisSeason: 1 });
+    expect(positionWeightsFromShare(1)).toEqual({ lastSeason: 1, thisSeason: 0 });
+  });
+
+  it('clamps out-of-range or invalid input', () => {
+    expect(positionWeightsFromShare(1.5)).toEqual({ lastSeason: 1, thisSeason: 0 });
+    expect(positionWeightsFromShare(-1)).toEqual({ lastSeason: 0, thisSeason: 1 });
+    expect(positionWeightsFromShare(Number.NaN)).toEqual({ lastSeason: 0, thisSeason: 1 });
   });
 });
 

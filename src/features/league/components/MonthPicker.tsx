@@ -16,10 +16,11 @@ export function MonthPicker({
   const next = index >= 0 && index < options.length - 1 ? options[index + 1] : undefined;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Button
         variant="secondary"
         size="sm"
+        className="w-11 text-base sm:w-auto"
         aria-label="Previous month"
         disabled={!previous}
         onClick={() => previous && onChange(previous.key)}
@@ -31,7 +32,7 @@ export function MonthPicker({
       </label>
       <select
         id="month-picker"
-        className="input h-8 w-auto py-0 pr-8"
+        className="input h-9 flex-1 py-0 pr-8 sm:h-8 sm:w-auto sm:flex-none"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -46,6 +47,7 @@ export function MonthPicker({
       <Button
         variant="secondary"
         size="sm"
+        className="w-11 text-base sm:w-auto"
         aria-label="Next month"
         disabled={!next}
         onClick={() => next && onChange(next.key)}

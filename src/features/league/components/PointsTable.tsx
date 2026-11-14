@@ -56,7 +56,7 @@ function ReferenceRow({
   return (
     <tr>
       <td />
-      <td className="!font-medium text-slate-600">{label}</td>
+      <td className="sticky left-0 z-10 !font-medium text-slate-600">{label}</td>
       {values.map((v, i) => (
         <td key={columns[i]?.gameweek.id} className="num !font-normal">
           {v ?? <span className="text-slate-300">–</span>}
@@ -164,7 +164,7 @@ export function PointsTable({
           <thead>
             <tr>
               <th className="w-10 num">#</th>
-              <th>Player</th>
+              <th className="sticky left-0 z-10">Player</th>
               {columns.map(({ gameweek, state }) => (
                 <SortHeader
                   key={gameweek.id}
@@ -199,16 +199,19 @@ export function PointsTable({
                 <td className="num text-slate-500">
                   {positionLabel(row.month.position, row.month.tieSize)}
                 </td>
-                <td>
+                {/* Pinned so names stay visible while swiping across GW columns on a phone. */}
+                <td className="sticky left-0 z-10 bg-inherit">
                   <a
                     href={`https://fantasy.premierleague.com/entry/${row.participant.entryId}/history`}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-medium text-slate-900 hover:text-brand-700 hover:underline"
+                    className="block max-w-[8rem] truncate font-medium text-slate-900 hover:text-brand-700 hover:underline sm:max-w-none"
                   >
                     {row.participant.playerName}
                   </a>
-                  <div className="text-xs text-slate-500">{row.participant.entryName}</div>
+                  <div className="hidden text-xs text-slate-500 sm:block">
+                    {row.participant.entryName}
+                  </div>
                 </td>
                 {columns.map(({ gameweek }) => (
                   <ScoreCell key={gameweek.id} cell={row.gameweeks[gameweek.id]} />

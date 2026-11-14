@@ -38,7 +38,8 @@ export function UserMenu() {
         loading={busy}
         onClick={() => void handleSignIn()}
       >
-        Admin sign in
+        <span className="hidden sm:inline">Admin sign in</span>
+        <span className="sm:hidden">Sign in</span>
       </Button>
     );
   }

@@ -17,7 +17,7 @@ export function useInfoToggle(info: ReactNode | undefined) {
       title={open ? 'Hide info' : 'Show info'}
       onClick={() => setOpen((v) => !v)}
       className={cn(
-        'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold italic leading-none transition-colors',
+        'inline-flex h-6 w-6 shrink-0 sm:h-5 sm:w-5 items-center justify-center rounded-full border text-[11px] font-semibold italic leading-none transition-colors',
         open
           ? 'border-brand-600 bg-brand-600 text-white'
           : 'border-slate-300 text-slate-500 hover:border-brand-500 hover:text-brand-700',

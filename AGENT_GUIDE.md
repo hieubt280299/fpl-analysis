@@ -14,7 +14,7 @@ A web app with two features:
 2. **Fixture Difficulty (FDR) analysis**: ranks Premier League teams by how easy their next five
    gameweeks are, reproducing the owner's spreadsheet formula exactly.
 
-Anyone can view both. Only **admins** can change settings, choose participants, grant penalty-free
+Anyone can view both; guests can try their own FDR formula in their own tab (F12). Only **admins** can change settings, choose participants, grant penalty-free
 points or finalize months. All players are in Vietnam.
 
 ---
@@ -45,19 +45,20 @@ Worked example (the original sheet, November 2026, GW10–12): 4 players → pot
 
 ## 3. Business rules — FDR analysis
 
-| #   | Rule                                                                                                                                                                                                                                                                                                                                                         |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| F1  | Columns: Rank, Team, Last season (final PL position), This season (current PL position), FDR for the next 5 GWs, AVG.                                                                                                                                                                                                                                        |
-| F2  | FDR per fixture = official FPL difficulty (`team_h_difficulty` / `team_a_difficulty` from `/fixtures/`).                                                                                                                                                                                                                                                     |
-| F3  | `AVG = ROUND((G1×w1 + G2×w2 + G3×w3 + G4×w4 + G5×w5) × (0.8 + 0.01×Last×wLast + 0.01×This×wThis), 1)`                                                                                                                                                                                                                                                        |
-| F4  | **GW weights** `w1..w5` are admin-adjustable, each ≥ 0, and must **sum to 10** (default 2.6, 2.3, 2.0, 1.7, 1.4). **Position weights are automatic** (not editable): `wThis = min(1, 0.1 × finished GWs)` — 0% before GW1, +10% per finished GW, 100% from GW10 on — and `wLast = 1 − wThis`. The original sheet (made after GW9) used 0.1 / 0.9.            |
-| F5  | Rounding is Excel `ROUND` (half away from zero, after normalising to 15 significant digits): `roundHalfAwayFromZero`.                                                                                                                                                                                                                                        |
-| F6  | Default order: AVG ascending. **Rank** is Excel `RANK` on the rounded AVG (ties share a rank, the next rank is skipped). Teams with the same AVG are listed alphabetically.                                                                                                                                                                                  |
-| F7  | **Last season** positions are admin-entered (hidden behind _Edit last season's table_; used once a year), keyed by FPL team **`code`**. Promoted teams default to **20**. The **season label is automatic** (from the GW1 deadline: 2026/27 season → last season 2025/26) and saved with the table; admins are prompted when a new season needs a new table. |
-| F8  | **This season** = the official table FPL publishes in `bootstrap-static` `teams[].position`. If those positions are missing or not exactly 1..N, fall back to a table calculated from finished fixtures (points, goal difference, goals scored, then name). The page says which source is in use.                                                            |
-| F9  | The window is **fixed**: the next GW whose deadline has not passed plus the following ones, **at most 5**. No navigation to past GWs or further ahead (future league positions can't be projected). Near the season end it shrinks (e.g. GW36–38) and uses the first weights only; after the last deadline the page shows an empty state.                    |
-| F10 | **Double GW**: `FDR = 1 / (1/M1 + 1/M2)` (`1 / Σ 1/Mi` for 3+ fixtures), **rounded to 1 decimal** (3 & 5 → 1.875 → 1.9). **Blank GW**: `FDR = 6`.                                                                                                                                                                                                            |
-| F11 | **Every column is sortable** (click header: ascending, click again: descending; ties fall back to AVG, then name). The page shows when the FPL data was last fetched and when the formula settings were last changed.                                                                                                                                        |
+| #   | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Columns: Rank, Team, Last season (final PL position), This season (current PL position), FDR for the next 5 GWs, AVG.                                                                                                                                                                                                                                                                                                                                                               |
+| F2  | FDR per fixture = official FPL difficulty (`team_h_difficulty` / `team_a_difficulty` from `/fixtures/`).                                                                                                                                                                                                                                                                                                                                                                            |
+| F3  | `AVG = ROUND((G1×w1 + G2×w2 + G3×w3 + G4×w4 + G5×w5) × (0.8 + 0.01×Last×wLast + 0.01×This×wThis), 1)`                                                                                                                                                                                                                                                                                                                                                                               |
+| F4  | **GW weights** `w1..w5` are admin-adjustable, each ≥ 0, and must **sum to 10** (default 2.6, 2.3, 2.0, 1.7, 1.4). **Position weights are automatic** (not editable): `wThis = min(1, 0.1 × finished GWs)` — 0% before GW1, +10% per finished GW, 100% from GW10 on — and `wLast = 1 − wThis`. The original sheet (made after GW9) used 0.1 / 0.9.                                                                                                                                   |
+| F5  | Rounding is Excel `ROUND` (half away from zero, after normalising to 15 significant digits): `roundHalfAwayFromZero`.                                                                                                                                                                                                                                                                                                                                                               |
+| F6  | Default order: AVG ascending. **Rank** is Excel `RANK` on the rounded AVG (ties share a rank, the next rank is skipped). Teams with the same AVG are listed alphabetically.                                                                                                                                                                                                                                                                                                         |
+| F7  | **Last season** positions are admin-entered (hidden behind _Edit last season's table_; used once a year), keyed by FPL team **`code`**. Promoted teams default to **20**. The **season label is automatic** (from the GW1 deadline: 2026/27 season → last season 2025/26) and saved with the table; admins are prompted when a new season needs a new table.                                                                                                                        |
+| F8  | **This season** = the official table FPL publishes in `bootstrap-static` `teams[].position`. If those positions are missing or not exactly 1..N, fall back to a table calculated from finished fixtures (points, goal difference, goals scored, then name). The page says which source is in use.                                                                                                                                                                                   |
+| F9  | The window is **fixed**: the next GW whose deadline has not passed plus the following ones, **at most 5**. No navigation to past GWs or further ahead (future league positions can't be projected). Near the season end it shrinks (e.g. GW36–38) and uses the first weights only; after the last deadline the page shows an empty state.                                                                                                                                           |
+| F10 | **Double GW**: `FDR = 1 / (1/M1 + 1/M2)` (`1 / Σ 1/Mi` for 3+ fixtures), **rounded to 1 decimal** (3 & 5 → 1.875 → 1.9). **Blank GW**: `FDR = 6`.                                                                                                                                                                                                                                                                                                                                   |
+| F11 | **Every column is sortable** (click header: ascending, click again: descending; ties fall back to AVG, then name). The page shows when the FPL data was last fetched and when the formula settings were last changed.                                                                                                                                                                                                                                                               |
+| F12 | **Guests' own formula** (anyone not signed in): _My formula_ lets them set any GW weights (no total-of-10 rule) and the last/this-season split with a slider (steps of 5%). It applies at once, **only in their browser tab** (`sessionStorage`, `features/fdr/hooks/useCustomFormula.ts`), never in Firestore; a bar shows while it is on. _Reset to defaults_ returns to the shared formula (admin GW weights + automatic position weights). Admins only edit the shared formula. |
 
 The test suite reproduces all 20 rows of the original sheet (`src/domain/fdr/fdr.test.ts`). It must
 keep passing.
@@ -79,7 +80,8 @@ api/
   _fpl.test.ts          its tests (leading "_" = not deployed as a function)
 src/
   main.tsx              entry point
-  app/                  shell: providers, browser cache (persistence.ts), router, layout, banners
+  app/                  shell: providers, browser cache (persistence.ts), router, layout (top nav /
+                        mobile tab bar), banners, PWA install button + update prompt
   config/               business constants & defaults (pure data, no logic)
     league.ts             LEAGUE_RULES, DEFAULT_LEAGUE_SETTINGS
     fdr.ts                formula defaults, blank-GW value, 2025/26 seed table
@@ -98,6 +100,8 @@ src/
   components/ui/        shared presentational primitives (no data fetching)
   utils/                formatting, error helpers
   styles/index.css      Tailwind + table styles
+pwa.config.ts           PWA manifest + service-worker options (vite-plugin-pwa)
+pwa-assets.config.ts    app icon generation from public/favicon.svg (`npm run icons`)
 vercel.json             build settings, SPA fallback rewrite, headers, function region (sin1)
 firestore.rules         security rules (server-side source of truth for permissions)
 firebase.json           Firestore rules/indexes deploy + local emulators only (no Firebase Hosting)
@@ -183,6 +187,21 @@ public functions, so keep helpers and tests prefixed with `_`.
   must be added to Firebase Auth → Settings → **Authorized domains**.
 - Firestore rules are deployed separately with `npm run deploy:rules`.
 
+### 4.6 Installable app (PWA)
+
+- `vite-plugin-pwa` (`pwa.config.ts`): manifest (standalone, theme `#244e39`, icons incl. maskable,
+  shortcuts to Mini-league and FDR) and a Workbox service worker that **precaches the app shell only**
+  so the installed app opens offline. FPL data is **not** cached by the service worker — the
+  TanStack browser cache (§4.4) owns it. `navigateFallback` skips `/api/`.
+- `registerType: 'prompt'`: a new version waits until the user taps **Update**
+  (`PwaUpdatePrompt`); installed apps check for updates hourly. Never switch to auto-reload (an admin
+  could lose an edit).
+- Install UI: `beforeinstallprompt` is captured in `main.tsx` before React renders
+  (`app/installPrompt.ts`); the header shows **Install** when the browser allows it. iPhone/iPad have
+  no install API, so the button explains Share → Add to Home Screen. Hidden once installed.
+- Icons: edit `public/favicon.svg`, then `npm run icons` (maskable/Apple icons get padding on the
+  logo green). `vercel.json` serves `sw.js` and the manifest with `max-age=0` so updates roll out.
+
 ---
 
 ## 5. Coding standards
@@ -199,6 +218,11 @@ public functions, so keep helpers and tests prefixed with `_`.
 - **UI text:** short, simple English that every player in Vietnam understands. Explanations go behind an **(i) info button** (`Card info` / `PageHeader info`), never as always-visible sub-text. Say "Prize pool" (not "pot") and "players".
 - Accessibility: real `<button>`/`<label>`/`<select>`, `aria-label` on icon-only inputs/buttons,
   `aria-sort` on sortable headers, visible focus rings.
+- **Mobile-first:** write base classes for phones and add `sm:`/`lg:` for bigger screens. Phones
+  get the bottom tab bar (top nav from `sm`), `text-base` (16px) inputs so iOS doesn't zoom,
+  touch targets of ~36–44px, and the first column (player/team) pinned in wide tables.
+- Safe areas (notches, home bar): use `.safe-x`, `.safe-top`, `.safe-bottom`, `.clear-bottom-nav` and
+  `.above-bottom-nav` from `styles/index.css` (the viewport uses `viewport-fit=cover`).
 - Responsive: the page never scrolls horizontally; wide tables scroll inside their card
   (`overflow-x-auto`).
 - Every user-visible async state handles **pending, error (with retry) and empty**.
@@ -226,6 +250,7 @@ public functions, so keep helpers and tests prefixed with `_`.
 | `npm run emulators`    | Firebase Auth + Firestore emulators                                       |
 | `npm run deploy`       | check → `vercel deploy --prod` (or push to the Git branch Vercel watches) |
 | `npm run deploy:rules` | deploy `firestore.rules` and indexes                                      |
+| `npm run icons`        | regenerate the PWA icons from `public/favicon.svg`                        |
 
 ## 8. Known limitations and open decisions
 

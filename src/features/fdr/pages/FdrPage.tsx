@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FDR_BLANK_GAMEWEEK_VALUE } from '@/config/fdr';
 import { useAuth } from '@/features/auth';
 import {
@@ -10,19 +10,36 @@ import {
   PageHeader,
   StaleDataNotice,
 } from '@/components/ui';
-import { formatDateTime, formatPercent } from '@/utils/format';
+import { formatDateTime } from '@/utils/format';
 import { FdrSettingsPanel } from '../components/FdrSettingsPanel';
 import { FdrTable } from '../components/FdrTable';
+import { MyFormulaPanel } from '../components/MyFormulaPanel';
+import { useCustomFormula } from '../hooks/useCustomFormula';
 import { useFdrTable } from '../hooks/useFdrTable';
+import { fromFdrFormula, toFdrFormula } from '../model';
 
 export function FdrPage() {
-  const fdr = useFdrTable();
   const { isAdmin } = useAuth();
+  // Admins change the formula for everyone; guests can try their own (this tab only).
+  const isGuest = !isAdmin;
+  const myFormula = useCustomFormula();
+  const customFormula = useMemo(
+    () => (isGuest && myFormula.custom ? toFdrFormula(myFormula.custom) : null),
+    [isGuest, myFormula.custom],
+  );
+  const fdr = useFdrTable(customFormula);
   const [editing, setEditing] = useState(false);
+  const [myFormulaOpen, setMyFormulaOpen] = useState(false);
+  // Remounts the panel after a reset so its inputs show the defaults again.
+  const [myFormulaKey, setMyFormulaKey] = useState(0);
+  const resetMyFormula = () => {
+    myFormula.reset();
+    setMyFormulaKey((k) => k + 1);
+  };
 
   const first = fdr.gameweekIds[0];
   const last = fdr.gameweekIds[fdr.gameweekIds.length - 1];
-  const { gameweekWeights, positionWeights } = fdr.formula;
+  const { positionWeights } = fdr.formula;
   const expectedLastSeason = fdr.seasons?.previous ?? null;
   const lastSeasonOutdated =
     expectedLastSeason !== null && fdr.settings.lastSeasonLabel !== expectedLastSeason;
@@ -43,12 +60,17 @@ export function FdrPage() {
           </div>
         }
         actions={
-          isAdmin &&
-          !editing && (
-            <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-              Formula settings
-            </Button>
-          )
+          isAdmin
+            ? !editing && (
+                <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
+                  Formula settings
+                </Button>
+              )
+            : !myFormulaOpen && (
+                <Button size="sm" variant="secondary" onClick={() => setMyFormulaOpen(true)}>
+                  My formula
+                </Button>
+              )
         }
       />
 
@@ -86,16 +108,39 @@ export function FdrPage() {
             />
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-medium text-slate-700">
-              {first === last ? `GW${first}` : `GW${first}–${last}`}
-            </p>
-            <p className="text-sm text-slate-500">
-              GW weights <strong>{gameweekWeights.join(' · ')}</strong> · last season{' '}
-              <strong>{formatPercent(positionWeights.lastSeason)}</strong> · this season{' '}
-              <strong>{formatPercent(positionWeights.thisSeason)}</strong>
-            </p>
-          </div>
+          {isGuest && myFormulaOpen && (
+            <MyFormulaPanel
+              key={myFormulaKey}
+              value={myFormula.custom ?? fromFdrFormula(fdr.sharedFormula)}
+              gameweekIds={fdr.gameweekIds}
+              isCustom={myFormula.custom !== null}
+              onChange={myFormula.setCustom}
+              onReset={resetMyFormula}
+              onClose={() => setMyFormulaOpen(false)}
+            />
+          )}
+
+          {isGuest && !myFormulaOpen && myFormula.custom && (
+            <Alert
+              tone="info"
+              action={
+                <div className="flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setMyFormulaOpen(true)}>
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={resetMyFormula}>
+                    Reset
+                  </Button>
+                </div>
+              }
+            >
+              You are using <strong>my formula</strong> (only you see this).
+            </Alert>
+          )}
+
+          <p className="text-sm font-medium text-slate-700">
+            {first === last ? `GW${first}` : `GW${first}–${last}`}
+          </p>
 
           <StaleDataNotice
             error={fdr.refreshError}

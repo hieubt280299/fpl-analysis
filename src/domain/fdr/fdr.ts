@@ -63,6 +63,16 @@ export function positionWeightsAfter(finishedGameweeks: number): PositionWeights
   return { lastSeason: roundHalfAwayFromZero(1 - thisSeason, 4), thisSeason };
 }
 
+/**
+ * Position weights from a chosen share for last season (0–1), e.g. a guest's slider.
+ * This season gets the rest, so the two always sum to 1.
+ */
+export function positionWeightsFromShare(lastSeasonShare: number): PositionWeights {
+  const share = Number.isFinite(lastSeasonShare) ? lastSeasonShare : 0;
+  const lastSeason = roundHalfAwayFromZero(clamp(share, 0, 1), 4);
+  return { lastSeason, thisSeason: roundHalfAwayFromZero(1 - lastSeason, 4) };
+}
+
 export function createFdrFormula(
   gameweekWeights: readonly number[],
   finishedGameweeks: number,

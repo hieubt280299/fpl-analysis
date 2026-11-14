@@ -2,7 +2,9 @@
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Connect, type Plugin } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 import { handleFplRequest } from './api/fpl';
+import { pwaOptions } from './pwa.config';
 
 /**
  * The browser cannot call the FPL API directly (no CORS headers), so the app calls
@@ -35,7 +37,7 @@ function fplApiPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), fplApiPlugin()],
+  plugins: [react(), fplApiPlugin(), VitePWA(pwaOptions)],
   // Fixed ports (not Vite's 5173/4173) so this app doesn't clash with other local Vite projects.
   server: { port: 5180, strictPort: true },
   preview: { port: 4180, strictPort: true },

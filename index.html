@@ -2,14 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: draw under notches; the layout pads with safe-area insets. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>FPL Analysis</title>
     <meta
       name="description"
-      content="FPL mini-league monthly prizes and Premier League fixture difficulty analysis."
+      content="Monthly prizes for our FPL mini-league and fixture difficulty for the next 5 GWs."
     />
-    <meta name="theme-color" content="#2a6045" />
-    <title>FPL Analysis</title>
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <!-- Installed app (PWA); the manifest link is added by vite-plugin-pwa. -->
+    <meta name="theme-color" content="#244e39" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="FPL Analysis" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   </head>
   <body>
     <div id="root"></div>

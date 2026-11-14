@@ -2,8 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 import { AppProviders } from '@/app/AppProviders';
+import { startInstallPromptCapture } from '@/app/installPrompt';
 import { router } from '@/app/router';
 import '@/styles/index.css';
+
+// Before React renders: the browser's install event can fire very early.
+startInstallPromptCapture();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root not found');

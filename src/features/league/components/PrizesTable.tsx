@@ -33,7 +33,7 @@ export function PrizesTable({ standings }: { standings: MonthStandings }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Player</th>
+              <th className="sticky left-0 z-10">Player</th>
               {columns.map(({ gameweek }) => (
                 <th key={gameweek.id} className="num">
                   GW{gameweek.id}
@@ -46,7 +46,9 @@ export function PrizesTable({ standings }: { standings: MonthStandings }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.participant.entryId}>
-                <td className="font-medium">{row.participant.playerName}</td>
+                <td className="sticky left-0 z-10 max-w-[8rem] truncate bg-inherit font-medium sm:max-w-none">
+                  {row.participant.playerName}
+                </td>
                 {columns.map(({ gameweek, state }) => (
                   <td key={gameweek.id} className="num">
                     <Amount value={row.gameweeks[gameweek.id]?.prize ?? 0} state={state} />
@@ -63,7 +65,7 @@ export function PrizesTable({ standings }: { standings: MonthStandings }) {
           </tbody>
           <tfoot>
             <tr>
-              <td>Total</td>
+              <td className="sticky left-0 z-10">Total</td>
               {columns.map(({ gameweek }) => (
                 <td key={gameweek.id} className="num">
                   {formatAmount(sum(rows.map((r) => r.gameweeks[gameweek.id]?.prize ?? 0)))}

@@ -20,6 +20,13 @@ npm run dev        # http://localhost:5180
 Without Firebase the app runs read-only with default settings: the FDR table works fully, and the
 mini-league shows months but no saved participants.
 
+## Install as an app
+
+The site is an installable app (PWA) that also opens offline with the last saved data.
+
+- **Android / Chrome / Edge:** tap **Install** in the header (or the browser's install icon).
+- **iPhone / iPad:** in Safari tap **Share → Add to Home Screen** (the Install button shows this).
+
 ## Firebase setup (Auth + Firestore only, free Spark plan)
 
 1. Create a Firebase project. Enable **Authentication → Google** and **Firestore** (region

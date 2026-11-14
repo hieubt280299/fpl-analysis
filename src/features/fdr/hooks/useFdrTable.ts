@@ -6,6 +6,7 @@ import {
   createFdrFormula,
   resolveThisSeasonPositions,
   upcomingWindow,
+  type FdrFormula,
   type Team,
 } from '@/domain/fdr';
 import { seasonLabels } from '@/domain/shared/season';
@@ -19,7 +20,10 @@ const DEFAULT_STORED: StoredFdrSettings = { ...DEFAULT_FDR, updatedAt: null, upd
  * FDR table for the next (up to) 5 gameweeks, starting at the first gameweek whose deadline has
  * not passed. Position weights follow the number of finished gameweeks.
  */
-export function useFdrTable() {
+export function useFdrTable(
+  /** A guest's own formula (this tab only); null = the shared formula. */
+  customFormula: FdrFormula | null = null,
+) {
   const season = useSeasonData();
   const fixtures = useFixtures();
   const settingsQuery = useFdrSettings();
@@ -34,10 +38,12 @@ export function useFdrTable() {
   );
 
   const settings = settingsQuery.data ?? DEFAULT_STORED;
-  const formula = useMemo(
+  /** The formula everyone sees (admin GW weights + automatic position weights). */
+  const sharedFormula = useMemo(
     () => createFdrFormula(settings.gameweekWeights, finishedGameweeks),
     [settings.gameweekWeights, finishedGameweeks],
   );
+  const formula = customFormula ?? sharedFormula;
 
   const teams = season.data?.teams;
   const teamsById = useMemo(
@@ -86,6 +92,7 @@ export function useFdrTable() {
     positionSource: thisSeason.source,
     settings,
     formula,
+    sharedFormula,
     dataUpdatedAt: fetchedAt.length ? new Date(Math.min(...fetchedAt)) : null,
     isFetching: season.isFetching || fixtures.isFetching,
     isPending: season.isPending || fixtures.isPending || settingsQuery.isPending,
