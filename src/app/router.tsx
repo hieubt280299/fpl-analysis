@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 import { FdrPage } from '@/features/fdr';
+import { GameweekPage } from '@/features/gameweek';
 import { LeaguePage } from '@/features/league';
 import { SettingsPage } from '@/features/settings';
 import { AppLayout } from './AppLayout';
@@ -12,6 +13,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/league" replace /> },
       { path: 'league/:monthKey?', element: <LeaguePage /> },
+      { path: 'gameweek', element: <GameweekPage /> },
       { path: 'fdr', element: <FdrPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <NotFoundPage /> },

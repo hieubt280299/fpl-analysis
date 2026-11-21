@@ -1,6 +1,7 @@
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { Fixture, Team } from '@/domain/fdr';
+import type { Player } from '@/domain/gameweek';
 import type { EventStatus, Gameweek, GameweekScore } from '@/domain/league';
 import { fetchAllLeagueStandings, fplApi } from './client';
 import {
@@ -12,6 +13,7 @@ import {
   mapTeams,
   type LeagueMember,
 } from './mappers';
+import { mapPlayers } from './gameweekMappers';
 
 const MINUTE = 60_000;
 
@@ -22,11 +24,16 @@ export const fplKeys = {
   fixtures: () => [...fplKeys.all, 'fixtures'] as const,
   league: (leagueId: number) => [...fplKeys.all, 'league', leagueId] as const,
   entryHistory: (entryId: number) => [...fplKeys.all, 'entry-history', entryId] as const,
+  gameweekFixtures: (gameweek: number) => [...fplKeys.all, 'fixtures', 'event', gameweek] as const,
+  gameweekLive: (gameweek: number) => [...fplKeys.all, 'live', gameweek] as const,
+  picks: (entryId: number, gameweek: number) =>
+    [...fplKeys.all, 'picks', entryId, gameweek] as const,
 };
 
 export interface SeasonData {
   gameweeks: Gameweek[];
   teams: Team[];
+  players: Player[];
 }
 
 /** Gameweeks (with deadlines/status) and teams. The 1.8 MB raw payload is mapped and dropped. */
@@ -35,7 +42,11 @@ export function useSeasonData() {
     queryKey: fplKeys.bootstrap(),
     queryFn: async ({ signal }): Promise<SeasonData> => {
       const raw = await fplApi.bootstrap(signal);
-      return { gameweeks: mapGameweeks(raw.events), teams: mapTeams(raw.teams) };
+      return {
+        gameweeks: mapGameweeks(raw.events),
+        teams: mapTeams(raw.teams),
+        players: mapPlayers(raw.elements),
+      };
     },
     staleTime: 5 * MINUTE,
   });
@@ -54,7 +65,7 @@ export function useEventStatus() {
 }
 
 /** Auto-refresh period in ms, or false for none. Polling pauses while the tab is hidden. */
-type RefetchInterval = number | false;
+export type RefetchInterval = number | false;
 
 export function useFixtures(refetchInterval: RefetchInterval = false) {
   return useQuery({

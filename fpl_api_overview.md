@@ -48,6 +48,11 @@ _Every endpoint below was called and checked on 12 Nov 2026 (season 2026/27, aft
 - **URL:** `https://fantasy.premierleague.com/api/event/{gameweek_id}/live/`
 - **Contents:** `elements`: every player's live stats for the gameweek plus `explain` (how their
   points were scored).
+- _Seen 21 Nov 2026 (GW11, matches at 55–59'):_ `total_points` already included provisional bonus,
+  and `/fixtures/?event=11` listed that bonus under `stats` → `bonus` while the matches were in play
+  (`event-status` still said `bonus_added: false`). Fixtures also carry `started` and `minutes`.
+- Manager picks (`entry/{id}/event/{gw}/picks/`) keep `automatic_subs: []` and the original
+  multipliers until FPL processes the gameweek.
 
 ### 5. Gameweek processing status
 

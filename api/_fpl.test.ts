@@ -14,6 +14,15 @@ describe('resolveFplTarget', () => {
     expect(resolveFplTarget(at('path=entry%2F130307%2Fhistory%2F'))?.url.href).toBe(
       'https://fantasy.premierleague.com/api/entry/130307/history/',
     );
+    expect(resolveFplTarget(at('path=entry/130307/event/11/picks/'))?.url.href).toBe(
+      'https://fantasy.premierleague.com/api/entry/130307/event/11/picks/',
+    );
+    expect(resolveFplTarget(at('path=event/11/live/'))?.url.href).toBe(
+      'https://fantasy.premierleague.com/api/event/11/live/',
+    );
+    expect(resolveFplTarget(at('path=fixtures/&event=11'))?.url.href).toBe(
+      'https://fantasy.premierleague.com/api/fixtures/?event=11',
+    );
   });
 
   it('forwards only allow-listed query parameters', () => {
@@ -29,7 +38,15 @@ describe('resolveFplTarget', () => {
   });
 
   it('rejects anything not on the allow-list', () => {
-    for (const path of ['me/', 'entry/abc/history/', '../secret/', 'entry/1/transfers/', '']) {
+    for (const path of [
+      'me/',
+      'entry/abc/history/',
+      '../secret/',
+      'entry/1/transfers/',
+      'entry/1/event/x/picks/',
+      'event/11/live/extra/',
+      '',
+    ]) {
       expect(resolveFplTarget(at(`path=${encodeURIComponent(path)}`))).toBeNull();
     }
   });
@@ -46,7 +63,7 @@ describe('handleFplRequest', () => {
     );
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('{"ok":true}');
-    expect(response.headers.get('cache-control')).toContain('s-maxage=300');
+    expect(response.headers.get('cache-control')).toContain('s-maxage=60');
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
       'https://fantasy.premierleague.com/api/fixtures/',
     );

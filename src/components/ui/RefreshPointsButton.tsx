@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui';
+import { Button } from './Button';
 import { formatDateTime } from '@/utils/format';
 
 /** After a successful manual refresh, wait this long before allowing another one. */

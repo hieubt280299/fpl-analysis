@@ -1,10 +1,13 @@
 # FPL Analysis
 
-Two tools for a Fantasy Premier League group:
+Three tools for a Fantasy Premier League group:
 
 - **Mini-league**: monthly prize pot for selected members of an FPL classic league, with per-GW and
   monthly winners, tie-breakers, shared prizes for ties, penalty-free transfer points and frozen
   month results.
+- **Current GW**: live view of the current gameweek: each team's live points with its 3 biggest
+  differentials and threats, live/upcoming matches with goals, assists, bonus and cards, and a
+  player × team ownership matrix.
 - **Fixture difficulty**: teams ranked by a weighted 5-GW FDR score adjusted for last/this season's
   league position, with sortable columns and admin-tunable weights.
 

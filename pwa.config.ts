@@ -9,11 +9,12 @@ export const THEME_COLOR = '#244e39';
  * - Service worker: precaches the app shell so the installed app opens offline. FPL data is NOT
  *   cached by the service worker — the browser query cache (src/app/persistence.ts) does that, so
  *   there is one cache with clear "saved data" notices instead of two.
- * - registerType 'prompt': a new version is only activated when the user taps "Update"
- *   (src/app/PwaUpdatePrompt.tsx), so an admin is never reloaded mid-edit.
+ * - registerType 'autoUpdate' (owner's decision): a new version activates as soon as it has
+ *   downloaded and open pages reload by themselves (src/app/PwaAutoUpdate.tsx), so nobody stays
+ *   on an old version.
  */
 export const pwaOptions: Partial<VitePWAOptions> = {
-  registerType: 'prompt',
+  registerType: 'autoUpdate',
   injectRegister: false, // registered from React (virtual:pwa-register/react)
   includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
   manifest: {
@@ -49,6 +50,12 @@ export const pwaOptions: Partial<VitePWAOptions> = {
         icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
       },
       {
+        name: 'Current gameweek',
+        short_name: 'Current GW',
+        url: '/gameweek',
+        icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+      },
+      {
         name: 'Fixture difficulty',
         short_name: 'FDR',
         url: '/fdr',
@@ -62,6 +69,9 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     navigateFallback: '/index.html',
     navigateFallbackDenylist: [/^\/api\//],
     cleanupOutdatedCaches: true,
+    // Take over open pages at once (forced update).
+    skipWaiting: true,
+    clientsClaim: true,
   },
   devOptions: { enabled: false },
 };

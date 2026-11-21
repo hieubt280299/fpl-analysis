@@ -9,8 +9,9 @@ import {
   ErrorState,
   LoadingState,
   PageHeader,
+  RefreshPointsButton,
   StaleDataNotice,
-  StatTile,
+  StatStrip,
 } from '@/components/ui';
 import { formatDateTime, formatGold } from '@/utils/format';
 import { MonthAdminBar } from '../components/MonthAdminBar';
@@ -20,7 +21,6 @@ import { ParticipantsEditor } from '../components/ParticipantsEditor';
 import { PointsTable } from '../components/PointsTable';
 import { PrizeBreakdown } from '../components/PrizeBreakdown';
 import { PrizesTable } from '../components/PrizesTable';
-import { RefreshPointsButton } from '../components/RefreshPointsButton';
 import { RulesNote } from '../components/RulesNote';
 import { FinalizeReminder } from '../components/FinalizeReminder';
 import { useMonthOptions, useMonthView } from '../hooks/useMonthView';
@@ -194,20 +194,22 @@ function MonthView({ monthKey }: { monthKey: MonthKey }) {
           <EmptyState title="No gameweeks in this month" />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatTile label="Players" value={participants.length} />
-              <StatTile label="Prize pool" value={formatGold(standings.prizes.pot)} />
-              <StatTile
-                label="Gameweeks"
-                value={first && last ? `GW${first.id}–${last.id}` : '–'}
-                hint={`${gameweeks.length} GW${gameweeks.length === 1 ? '' : 's'}${gameweeksEdited ? ' · changed by admin' : ''}`}
-              />
-              <StatTile
-                label="Prizes so far"
-                value={formatGold(standings.totalAwarded)}
-                hint={standings.monthState === 'final' ? 'Final' : 'Not final yet'}
-              />
-            </div>
+            <StatStrip
+              items={[
+                { label: 'Players', value: participants.length },
+                { label: 'Prize pool', value: formatGold(standings.prizes.pot) },
+                {
+                  label: 'Gameweeks',
+                  value: first && last ? `GW${first.id}–${last.id}` : '–',
+                  hint: gameweeksEdited ? 'changed by admin' : undefined,
+                },
+                {
+                  label: 'Prizes so far',
+                  value: formatGold(standings.totalAwarded),
+                  hint: standings.monthState === 'final' ? 'final' : 'not final yet',
+                },
+              ]}
+            />
 
             {participants.length === 0 ? (
               <EmptyState

@@ -4,6 +4,8 @@ import type {
   FplEventStatusResponse,
   FplFixture,
   FplLeagueStandingsResponse,
+  FplLiveResponse,
+  FplPicksResponse,
 } from './types';
 
 /**
@@ -90,6 +92,18 @@ export const fplApi = {
 
   entryHistory: (entryId: number, signal?: AbortSignal) =>
     fplGet<FplEntryHistoryResponse>(`entry/${entryId}/history/`, {}, signal),
+
+  /** One gameweek's 10 (or so) fixtures, with live scores and match stats. */
+  gameweekFixtures: (gameweek: number, signal?: AbortSignal) =>
+    fplGet<FplFixture[]>('fixtures/', { event: gameweek }, signal),
+
+  /** Every player's live minutes and points for a gameweek. */
+  gameweekLive: (gameweek: number, signal?: AbortSignal) =>
+    fplGet<FplLiveResponse>(`event/${gameweek}/live/`, {}, signal),
+
+  /** A manager's 15 picks, captaincy and chip for a gameweek. */
+  entryPicks: (entryId: number, gameweek: number, signal?: AbortSignal) =>
+    fplGet<FplPicksResponse>(`entry/${entryId}/event/${gameweek}/picks/`, {}, signal),
 };
 
 /** Fetches every page of a classic league's standings. */

@@ -33,10 +33,19 @@ export interface FplTeam {
   position: number;
 }
 
+/** A player ("element"). `element_type`: 1 GKP, 2 DEF, 3 MID, 4 FWD (5 = old assistant manager). */
+export interface FplElement {
+  id: number;
+  web_name: string;
+  team: number;
+  element_type: number;
+}
+
 /** GET /bootstrap-static/ */
 export interface FplBootstrapResponse {
   events: FplEvent[];
   teams: FplTeam[];
+  elements: FplElement[];
 }
 
 /** GET /fixtures/ (array) */
@@ -52,6 +61,15 @@ export interface FplFixture {
   team_a_score: number | null;
   team_h_difficulty: number;
   team_a_difficulty: number;
+  started?: boolean | null;
+  /** Minutes played so far. */
+  minutes?: number;
+  /** Per-stat lists by side: goals_scored, assists, bonus, bps, yellow_cards, … */
+  stats?: Array<{
+    identifier: string;
+    h: Array<{ value: number; element: number }>;
+    a: Array<{ value: number; element: number }>;
+  }>;
 }
 
 export interface FplLeagueStandingResult {
@@ -93,4 +111,32 @@ export interface FplChipPlay {
 export interface FplEntryHistoryResponse {
   current: FplEntryEventHistory[];
   chips: FplChipPlay[];
+}
+
+/** GET /event/{gw}/live/ */
+export interface FplLiveResponse {
+  elements: Array<{
+    id: number;
+    /** Live totals for the GW (summed over a double GW), incl. bonus FPL has added. */
+    stats: { minutes: number; total_points: number; bonus: number };
+  }>;
+}
+
+export interface FplPick {
+  element: number;
+  /** 1–11 starting XI, 12–15 bench in order. */
+  position: number;
+  multiplier: number;
+  is_captain: boolean;
+  is_vice_captain: boolean;
+  element_type: number;
+}
+
+/** GET /entry/{id}/event/{gw}/picks/ */
+export interface FplPicksResponse {
+  active_chip: string | null;
+  /** Filled once FPL processes the GW. */
+  automatic_subs: Array<{ element_in: number; element_out: number; event: number }>;
+  entry_history: { event_transfers_cost: number };
+  picks: FplPick[];
 }

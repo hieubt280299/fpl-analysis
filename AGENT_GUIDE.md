@@ -8,13 +8,15 @@ in the same change.
 
 ## 1. Product
 
-A web app with two features:
+A web app with three features:
 
 1. **Mini-league manager**: runs a monthly prize competition on top of an FPL classic league.
-2. **Fixture Difficulty (FDR) analysis**: ranks Premier League teams by how easy their next five
+2. **Current GW**: live view of FPL's current gameweek for the mini-league (differentials &
+   threats, live matches, ownership matrix).
+3. **Fixture Difficulty (FDR) analysis**: ranks Premier League teams by how easy their next five
    gameweeks are, reproducing the owner's spreadsheet formula exactly.
 
-Anyone can view both; guests can try their own FDR formula in their own tab (F12). Only **admins** can change settings, choose participants, grant penalty-free
+Anyone can view all three; guests can try their own FDR formula in their own tab (F12). Only **admins** can change settings, choose participants, grant penalty-free
 points or finalize months. All players are in Vietnam.
 
 ---
@@ -42,6 +44,22 @@ points or finalize months. All players are in Vietnam.
 
 Worked example (the original sheet, November 2026, GW10–12): 4 players → pot 800 → each GW 160
 (120 / 40), month 320 (240 / 80). GW10 (gross): Quy 71 → 120, Hieu 61 → 40, An 59, Huy 44. Month (net): Huy 44 − 4 = 40.
+
+## 2b. Business rules — Current GW (`/gameweek`)
+
+| #   | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | Shows FPL's **current GW**: the latest one whose deadline has passed (`currentGameweek`); it stays until the next deadline. Before GW1: empty state. No navigation to other GWs.                                                                                                                                                                                                                                                                                                                                |
+| G2  | **Teams** = the participants an admin picked for the month the GW belongs to (after L14 moves). If none are picked (or the month can't be read), **all league members**.                                                                                                                                                                                                                                                                                                                                        |
+| G3  | **Live player points** = FPL's live `total_points` (`event/{gw}/live/`) + **projected bonus** for matches where FPL has not listed bonus yet. Projection: top 3 BPS of the match get 3/2/1 with "1224" ties (`bonusFromBps`). FPL (2026/27) usually lists provisional bonus during play itself; its bonus is already inside `total_points`.                                                                                                                                                                     |
+| G4  | **Active players** = starting XI after **projected automatic subs** (`buildLineup`): a starter is out once he has 0 minutes and all of his team's GW matches are finished (a blank team counts as finished); he's replaced by the first bench player (bench order) who **has played** and keeps the formation valid (GKP 1, DEF 3–5, MID 2–5, FWD 1–3); GK only by the bench GK. **Bench Boost**: all 15 active, no subs. Once FPL lists `automatic_subs` or the GW is `finished`, FPL's subs are used instead. |
+| G5  | **Captaincy**: captain ×2 (Triple Captain ×3). When the captain is certain not to play, the active vice-captain gets the multiplier (unless he is certain not to play too).                                                                                                                                                                                                                                                                                                                                     |
+| G6  | **Team live points** = Σ live points × multiplier (gross, before hits; the hit is shown separately).                                                                                                                                                                                                                                                                                                                                                                                                            |
+| G7  | **Differentials & threats** (as fplgameweek.com's Importance): for each team, gap = its multiplier for a player − the **average multiplier of the other teams** (0 = not owned/benched). Top 3 positive gaps = differentials, top 3 negative = threats; ties → more live points. Shown as % (+150 %) with the player's match status (G11) and live points. Teams ordered by live points.                                                                                                                        |
+| G8  | **Matches**: "Live & finished" (In play (minutes) · Done (P) = `finished_provisional` · Done) and "Upcoming" (kickoff in the league time zone). A started match expands to goals (+ own goals), assists, bonus (marked "from BPS" when projected), cards and penalties.                                                                                                                                                                                                                                         |
+| G9  | **Ownership matrix**: rows = players **active** for at least one team; columns = teams; cell = points for that owner (×2 C, ×3 TC), "bench" when owned but not active, empty when not owned. Rows by live points (then number of active owners), **20 per page**; footer = team totals.                                                                                                                                                                                                                         |
+| G10 | Live data (`fixtures?event`, `event/{gw}/live/`) refreshes every 90 s **only while a match is on** (`isAnyMatchLive`); picks are fetched once (10 min stale).                                                                                                                                                                                                                                                                                                                                                   |
+| G11 | **Match status** next to every player (differentials/threats and a _Match_ column in the matrix): `Done` (finished, incl. provisional), `In play 59’`, or the fixture still to come `ARS (H)` (kickoff in the tooltip). Double GW: both, joined by ·. Blank GW: `No match`.                                                                                                                                                                                                                                     |
 
 ## 3. Business rules — FDR analysis
 
@@ -81,7 +99,7 @@ api/
 src/
   main.tsx              entry point
   app/                  shell: providers, browser cache (persistence.ts), router, layout (top nav /
-                        mobile tab bar), banners, PWA install button + update prompt
+                        mobile tab bar), banners, PWA install button + forced auto-update
   config/               business constants & defaults (pure data, no logic)
     league.ts             LEAGUE_RULES, DEFAULT_LEAGUE_SETTINGS
     fdr.ts                formula defaults, blank-GW value, 2025/26 seed table
@@ -89,13 +107,17 @@ src/
     shared/math.ts        Excel rounding, ranking helpers
     league/               months, prizes, ranking, monthStandings (incl. penalty-free)
     fdr/                  fdr formula/table, leagueTable, this-season position source
+    gameweek/             live points & projected bonus, auto-subs/captaincy (lineup),
+                          differentials & threats (importance), ownership matrix
   lib/                  infrastructure adapters
     firebase/client.ts    Firebase init (optional: app runs read-only without it)
     fpl/                  FPL API: raw types, client, mappers → domain types, query hooks
+                          (gameweekMappers/gameweekQueries: fixtures?event, live, picks)
   features/             one folder per feature: api/ (Firestore), hooks/, components/, pages/, model.ts
     auth/                 Google sign-in, admin check, RequireAdmin
     settings/             settings/league + settings/fdr docs and the Settings page
     league/               month page, participants & penalty-free editor, finalize/reopen
+    gameweek/             Current GW page: differentials & threats, matches, ownership matrix
     fdr/                  FDR page, sortable table, admin formula panel
   components/ui/        shared presentational primitives (no data fetching)
   utils/                formatting, error helpers
@@ -118,18 +140,23 @@ firebase.json           Firestore rules/indexes deploy + local emulators only (n
 - Components never call `fetch` or Firestore directly. Use hooks in `features/*/hooks` or
   `lib/fpl/queries.ts`.
 - Features import other features only through their `index.ts`. Only `auth` and `settings` are
-  imported by other features.
+  imported by other features, plus `league` by `gameweek` (month participants via
+  `useGameweekParticipants`, and `ResultStateBadge`).
 - Pages are thin: they compose hooks + components; business decisions live in `domain/`.
 
 ### 4.2 Data sources and the FPL proxy
 
-| Data                                                               | FPL path (via proxy)                                 | Hook                |
-| ------------------------------------------------------------------ | ---------------------------------------------------- | ------------------- |
-| GWs (deadlines, status), teams, official positions                 | `bootstrap-static/` (~1.8 MB, mapped & dropped)      | `useSeasonData`     |
-| Current GW processing state (live / bonus added / tables updating) | `event-status/` (refreshed every minute)             | `useEventStatus`    |
-| All fixtures (FDR + fallback PL table)                             | `fixtures/`                                          | `useFixtures`       |
-| League members, live current-GW points (`event_total`)             | `leagues-classic/{id}/standings/` + `page_standings` | `useLeagueMembers`  |
-| Per-GW points, hits, bench, chips                                  | `entry/{id}/history/`                                | `useEntryHistories` |
+| Data                                                               | FPL path (via proxy)                                 | Hook                 |
+| ------------------------------------------------------------------ | ---------------------------------------------------- | -------------------- |
+| GWs (deadlines, status), teams, official positions                 | `bootstrap-static/` (~1.8 MB, mapped & dropped)      | `useSeasonData`      |
+| Current GW processing state (live / bonus added / tables updating) | `event-status/` (refreshed every minute)             | `useEventStatus`     |
+| All fixtures (FDR + fallback PL table)                             | `fixtures/`                                          | `useFixtures`        |
+| League members, live current-GW points (`event_total`)             | `leagues-classic/{id}/standings/` + `page_standings` | `useLeagueMembers`   |
+| Per-GW points, hits, bench, chips                                  | `entry/{id}/history/`                                | `useEntryHistories`  |
+| Players (name, team, position)                                     | `bootstrap-static/` `elements`                       | `useSeasonData`      |
+| Current GW matches with live score & stats                         | `fixtures/?event={gw}`                               | `useGameweekMatches` |
+| Live minutes & points of every player                              | `event/{gw}/live/`                                   | `useGameweekLive`    |
+| A team's 15 picks, captaincy, chip, automatic subs                 | `entry/{id}/event/{gw}/picks/`                       | `useEntryPicks`      |
 
 Endpoint reference (verified against the live API): [fpl_api_overview.md](fpl_api_overview.md).
 
@@ -190,12 +217,14 @@ public functions, so keep helpers and tests prefixed with `_`.
 ### 4.6 Installable app (PWA)
 
 - `vite-plugin-pwa` (`pwa.config.ts`): manifest (standalone, theme `#244e39`, icons incl. maskable,
-  shortcuts to Mini-league and FDR) and a Workbox service worker that **precaches the app shell only**
+  shortcuts to Mini-league, Current GW and FDR) and a Workbox service worker that **precaches the app shell only**
   so the installed app opens offline. FPL data is **not** cached by the service worker — the
   TanStack browser cache (§4.4) owns it. `navigateFallback` skips `/api/`.
-- `registerType: 'prompt'`: a new version waits until the user taps **Update**
-  (`PwaUpdatePrompt`); installed apps check for updates hourly. Never switch to auto-reload (an admin
-  could lose an edit).
+- **Forced update** (owner's decision): `registerType: 'autoUpdate'` with `skipWaiting` +
+  `clientsClaim`. A new version activates as soon as it has downloaded and open pages reload by
+  themselves (`PwaAutoUpdate`); there is no "Update" button to skip. Checks run on open, when the app
+  returns to the foreground, and hourly. Trade-off accepted: an admin mid-edit may lose unsaved
+  input when a deploy lands.
 - Install UI: `beforeinstallprompt` is captured in `main.tsx` before React renders
   (`app/installPrompt.ts`); the header shows **Install** when the browser allows it. iPhone/iPad have
   no install API, so the button explains Share → Add to Home Screen. Hidden once installed.
@@ -214,7 +243,9 @@ public functions, so keep helpers and tests prefixed with `_`.
 - Dates: store/compare ISO UTC strings; convert to the league time zone only for grouping and
   display (`Intl.DateTimeFormat` with `timeZone`). No date library.
 - UI: Tailwind utilities; shared table look via `.data-table`. Its selectors use `:where()` so cell
-  utilities (FDR colours, winner highlights, alignment) always win. Keep it that way.
+  utilities (FDR colours, winner highlights, alignment) always win. Keep it that way. Every cell has
+  a border (bottom + right, separate borders with zero spacing so sticky columns keep theirs); use
+  `.data-table` for every table.
 - **UI text:** short, simple English that every player in Vietnam understands. Explanations go behind an **(i) info button** (`Card info` / `PageHeader info`), never as always-visible sub-text. Say "Prize pool" (not "pot") and "players".
 - Accessibility: real `<button>`/`<label>`/`<select>`, `aria-label` on icon-only inputs/buttons,
   `aria-sort` on sortable headers, visible focus rings.

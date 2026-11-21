@@ -23,10 +23,13 @@ interface FplRoute {
 export const FPL_ROUTES: readonly FplRoute[] = [
   { pattern: /^bootstrap-static\/$/, cdnTtl: 300 },
   { pattern: /^event-status\/$/, cdnTtl: 60 },
-  { pattern: /^fixtures\/$/, cdnTtl: 300 },
+  // Short TTL: `?event=n` carries live scores and match stats for the Current GW page.
+  { pattern: /^fixtures\/$/, cdnTtl: 60 },
   { pattern: /^leagues-classic\/\d{1,10}\/standings\/$/, cdnTtl: 60 },
   { pattern: /^entry\/\d{1,10}\/$/, cdnTtl: 120 },
   { pattern: /^entry\/\d{1,10}\/history\/$/, cdnTtl: 60 },
+  { pattern: /^entry\/\d{1,10}\/event\/\d{1,2}\/picks\/$/, cdnTtl: 120 },
+  { pattern: /^event\/\d{1,2}\/live\/$/, cdnTtl: 60 },
 ];
 
 const ALLOWED_QUERY_PARAMS = new Set([

@@ -5,7 +5,7 @@ import { useAuth, UserMenu } from '@/features/auth';
 import { isFirebaseConfigured } from '@/lib/firebase/client';
 import { FplUpdatingBanner } from './FplUpdatingBanner';
 import { InstallAppButton } from './InstallAppButton';
-import { PwaUpdatePrompt } from './PwaUpdatePrompt';
+import { PwaAutoUpdate } from './PwaAutoUpdate';
 
 interface NavItem {
   to: string;
@@ -33,6 +33,18 @@ const LEAGUE: NavItem = {
   icon: (
     <svg {...iconProps}>
       <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM17 6h2a2 2 0 0 1 0 4h-2M7 6H5a2 2 0 0 0 0 4h2" />
+    </svg>
+  ),
+};
+
+const GAMEWEEK: NavItem = {
+  to: '/gameweek',
+  label: 'Current GW',
+  tabLabel: 'Current GW',
+  icon: (
+    <svg {...iconProps}>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2.5M10 2h4" />
     </svg>
   ),
 };
@@ -78,7 +90,7 @@ function tabClass({ isActive }: { isActive: boolean }) {
 
 export function AppLayout() {
   const { isAdmin, notice, dismissNotice } = useAuth();
-  const items = isAdmin ? [LEAGUE, FDR, SETTINGS] : [LEAGUE, FDR];
+  const items = isAdmin ? [LEAGUE, GAMEWEEK, FDR, SETTINGS] : [LEAGUE, GAMEWEEK, FDR];
 
   return (
     <div className="clear-bottom-nav flex min-h-dvh flex-col">
@@ -147,7 +159,7 @@ export function AppLayout() {
         <div
           className={cn(
             'mx-auto grid max-w-md',
-            items.length === 3 ? 'grid-cols-3' : 'grid-cols-2',
+            items.length === 4 ? 'grid-cols-4' : 'grid-cols-3',
           )}
         >
           {items.map((item) => (
@@ -159,7 +171,7 @@ export function AppLayout() {
         </div>
       </nav>
 
-      <PwaUpdatePrompt />
+      <PwaAutoUpdate />
       <ScrollRestoration />
     </div>
   );
