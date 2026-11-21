@@ -24,7 +24,7 @@ export const FPL_ROUTES: readonly FplRoute[] = [
   { pattern: /^bootstrap-static\/$/, cdnTtl: 300 },
   { pattern: /^event-status\/$/, cdnTtl: 60 },
   { pattern: /^fixtures\/$/, cdnTtl: 300 },
-  { pattern: /^leagues-classic\/\d{1,10}\/standings\/$/, cdnTtl: 120 },
+  { pattern: /^leagues-classic\/\d{1,10}\/standings\/$/, cdnTtl: 60 },
   { pattern: /^entry\/\d{1,10}\/$/, cdnTtl: 120 },
   { pattern: /^entry\/\d{1,10}\/history\/$/, cdnTtl: 60 },
 ];

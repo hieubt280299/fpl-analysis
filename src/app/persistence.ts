@@ -14,7 +14,7 @@ import type {
 export const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Bump whenever the shape of cached (mapped) FPL data changes, to discard old caches. */
-export const CACHE_BUSTER = 'fpl-v2';
+export const CACHE_BUSTER = 'fpl-v3';
 
 const STORAGE_KEY = 'fpl-analysis:query-cache';
 

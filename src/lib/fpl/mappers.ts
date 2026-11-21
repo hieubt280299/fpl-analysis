@@ -17,7 +17,10 @@ import type {
 
 export interface LeagueMember extends Participant {
   rank: number;
+  /** Season total after hits, including the current gameweek (updated live). */
   totalPoints: number;
+  /** Gross points in the current gameweek (updated live, unlike `entry/{id}/history/`). */
+  eventPoints: number;
 }
 
 export function mapGameweekStatus(event: FplEvent, now: number): GameweekStatus {
@@ -115,5 +118,6 @@ export function mapLeagueMember(result: FplLeagueStandingResult): LeagueMember {
     entryName: result.entry_name,
     rank: result.rank,
     totalPoints: result.total,
+    eventPoints: result.event_total ?? 0,
   };
 }

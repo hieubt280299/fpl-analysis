@@ -42,14 +42,12 @@ function ReferenceRow({
   columns,
   value,
   monthTotal = false,
-  extraCells,
 }: {
   label: string;
   columns: MonthStandings['columns'];
   value: (gameweek: Gameweek) => number | null | undefined;
   /** Show the sum over the month's gameweeks in the Month column. */
   monthTotal?: boolean;
-  extraCells: number;
 }) {
   const values = columns.map(({ gameweek }) => value(gameweek) ?? null);
   const known = values.filter((v): v is number => v !== null);
@@ -65,7 +63,6 @@ function ReferenceRow({
       <td className="num !font-normal">
         {monthTotal && known.length > 0 ? sum(known) : <span className="text-slate-300">–</span>}
       </td>
-      {extraCells > 0 && <td colSpan={extraCells} />}
     </tr>
   );
 }
@@ -87,8 +84,27 @@ function HitNote({ charged, waived }: { charged: number; waived: number }) {
   );
 }
 
+/**
+ * Tie-breaker stats under a score, shown only when asked for: ties are rare, so points stay the
+ * focus. GW cells already show the chip as a badge, so they only need the bench.
+ */
+function TieBreakerNote({ bench, chips }: { bench: number; chips?: number }) {
+  return (
+    <div className="whitespace-nowrap text-[11px] font-normal leading-tight text-slate-400">
+      bench {bench}
+      {chips !== undefined && ` · ${chips} chip${chips === 1 ? '' : 's'}`}
+    </div>
+  );
+}
+
 /** GW cell: gross points (what the GW is ranked on), with the hit shown underneath. */
-function ScoreCell({ cell }: { cell: GameweekCell | undefined }) {
+function ScoreCell({
+  cell,
+  showTieBreakers,
+}: {
+  cell: GameweekCell | undefined;
+  showTieBreakers: boolean;
+}) {
   if (!cell || cell.points === null) {
     return <td className="num text-slate-300">–</td>;
   }
@@ -103,6 +119,7 @@ function ScoreCell({ cell }: { cell: GameweekCell | undefined }) {
         <span>{cell.points}</span>
       </div>
       <HitNote charged={cell.transferCost} waived={cell.waivedCost} />
+      {showTieBreakers && <TieBreakerNote bench={cell.score?.benchPoints ?? 0} />}
     </td>
   );
 }
@@ -138,6 +155,7 @@ export function PointsTable({
           <li>GW: FPL points before hits. The hit (−4) is shown under the score.</li>
           <li>Month: total points after hits.</li>
           <li>Green = 1st, light green = 2nd. “=” means a shared place.</li>
+          <li>Same points? Fewer chips wins, then more bench points (Show chips & bench).</li>
         </ul>
       }
       description={
@@ -181,16 +199,6 @@ export function PointsTable({
               <SortHeader {...header} sortKey="month" disabled={monthState === 'pending'}>
                 Month
               </SortHeader>
-              {showTieBreakers && (
-                <>
-                  <th className="num" title="Chips used this month (fewer wins a tie)">
-                    Chips
-                  </th>
-                  <th className="num" title="Bench points this month (more wins a tie)">
-                    Bench
-                  </th>
-                </>
-              )}
             </tr>
           </thead>
           <tbody>
@@ -214,7 +222,11 @@ export function PointsTable({
                   </div>
                 </td>
                 {columns.map(({ gameweek }) => (
-                  <ScoreCell key={gameweek.id} cell={row.gameweeks[gameweek.id]} />
+                  <ScoreCell
+                    key={gameweek.id}
+                    cell={row.gameweeks[gameweek.id]}
+                    showTieBreakers={showTieBreakers}
+                  />
                 ))}
                 <td
                   className={cn('num text-base', placeClass(row.month.position))}
@@ -223,15 +235,14 @@ export function PointsTable({
                   {monthState === 'pending' ? (
                     <span className="text-slate-300">–</span>
                   ) : (
-                    row.month.points
+                    <>
+                      {row.month.points}
+                      {showTieBreakers && (
+                        <TieBreakerNote bench={row.month.benchPoints} chips={row.month.chipsUsed} />
+                      )}
+                    </>
                   )}
                 </td>
-                {showTieBreakers && (
-                  <>
-                    <td className="num text-slate-600">{row.month.chipsUsed}</td>
-                    <td className="num text-slate-600">{row.month.benchPoints}</td>
-                  </>
-                )}
               </tr>
             ))}
           </tbody>
@@ -241,14 +252,8 @@ export function PointsTable({
               columns={columns}
               value={(gw) => gw.averageScore}
               monthTotal
-              extraCells={showTieBreakers ? 2 : 0}
             />
-            <ReferenceRow
-              label="FPL highest"
-              columns={columns}
-              value={(gw) => gw.highestScore}
-              extraCells={showTieBreakers ? 2 : 0}
-            />
+            <ReferenceRow label="FPL highest" columns={columns} value={(gw) => gw.highestScore} />
           </tfoot>
         </table>
       </div>

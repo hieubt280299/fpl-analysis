@@ -20,6 +20,7 @@ import { ParticipantsEditor } from '../components/ParticipantsEditor';
 import { PointsTable } from '../components/PointsTable';
 import { PrizeBreakdown } from '../components/PrizeBreakdown';
 import { PrizesTable } from '../components/PrizesTable';
+import { RefreshPointsButton } from '../components/RefreshPointsButton';
 import { RulesNote } from '../components/RulesNote';
 import { FinalizeReminder } from '../components/FinalizeReminder';
 import { useMonthOptions, useMonthView } from '../hooks/useMonthView';
@@ -258,7 +259,7 @@ function ScoresSection({ view }: { view: ReturnType<typeof useMonthView> }) {
   return (
     <>
       {scores.needed && (
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {scores.autoRefreshing && (
             <span
               className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700"
@@ -268,9 +269,11 @@ function ScoresSection({ view }: { view: ReturnType<typeof useMonthView> }) {
               Live · auto-updates
             </span>
           )}
-          <Button size="sm" variant="ghost" loading={scores.isFetching} onClick={scores.refetch}>
-            Refresh points
-          </Button>
+          <RefreshPointsButton
+            refresh={scores.refresh}
+            isFetching={scores.isFetching}
+            updatedAt={scores.updatedAt}
+          />
         </div>
       )}
       <PointsTable standings={standings} penaltyFree={view.monthDoc?.penaltyFree ?? {}} />

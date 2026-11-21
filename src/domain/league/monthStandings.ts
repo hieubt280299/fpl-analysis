@@ -64,7 +64,13 @@ export interface GameweekColumn {
 export interface MonthStandings {
   prizes: PrizeStructure;
   columns: GameweekColumn[];
+  /** State of the month's points and ranking (provisional from the first GW's deadline). */
   monthState: ResultState;
+  /**
+   * State of the month prize: pending until the month's LAST gameweek has started (no month prize
+   * is shown during earlier GWs), then the same as `monthState`.
+   */
+  monthPrizeState: ResultState;
   /** The gameweek the penalty-free allowance applies to (the month's first), if any. */
   penaltyFreeGameweek: number | null;
   /** Sorted by month position (then name). */
@@ -116,6 +122,8 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
   const prizes = buildPrizeStructure(input.participants.length, gameweeks.length, input.rules);
   const columns = gameweeks.map((gameweek) => ({ gameweek, state: gameweekResultState(gameweek) }));
   const monthState = combineResultStates(columns.map((c) => c.state));
+  const lastColumn = columns[columns.length - 1];
+  const monthPrizeState = !lastColumn || lastColumn.state === 'pending' ? 'pending' : monthState;
   const penaltyFreeGameweek = gameweeks[0]?.id ?? null;
   const byName = (a: Participant, b: Participant) => a.playerName.localeCompare(b.playerName);
 
@@ -199,8 +207,13 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
       prizes.monthPrizes,
       (a, b) => byName(a.participant, b.participant),
     );
+    // The month is ranked from its first GW, but the prize only shows from its last GW on.
     for (const { item, position, tieSize, prize } of ranked) {
-      Object.assign(item.month, { position, tieSize, prize });
+      Object.assign(item.month, {
+        position,
+        tieSize,
+        prize: monthPrizeState === 'pending' ? 0 : prize,
+      });
     }
     sortedRows = ranked.map((r) => r.item);
   }
@@ -213,6 +226,7 @@ export function computeMonthStandings(input: MonthStandingsInput): MonthStanding
     prizes,
     columns,
     monthState,
+    monthPrizeState,
     penaltyFreeGameweek,
     rows: sortedRows,
     totalAwarded: sum(sortedRows.map((r) => r.totalPrize)),

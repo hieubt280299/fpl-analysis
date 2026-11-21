@@ -38,6 +38,7 @@ describe('computeMonthStandings', () => {
 
     expect(standings.prizes.pot).toBe(800);
     expect(standings.monthState).toBe('provisional');
+    expect(standings.monthPrizeState).toBe('pending');
     expect(standings.columns.map((c) => c.state)).toEqual(['final', 'pending', 'pending']);
 
     const byName = Object.fromEntries(standings.rows.map((r) => [r.participant.playerName, r]));
@@ -50,10 +51,10 @@ describe('computeMonthStandings', () => {
     expect(byName['Hieu Bui']?.gameweeks[10]?.prize).toBe(40);
     expect(byName['Quy Nguyen']?.gameweeks[11]?.net).toBeNull();
 
-    // Month prize is shown provisionally while the month is in progress.
-    expect(byName['Quy Nguyen']?.month.prize).toBe(240);
-    expect(byName['Hieu Bui']?.month.prize).toBe(80);
-    expect(byName['Quy Nguyen']?.totalPrize).toBe(360);
+    // The month is ranked, but its prize stays empty until the last GW (GW12) starts.
+    expect(byName['Quy Nguyen']?.month.position).toBe(1);
+    expect(byName['Quy Nguyen']?.month.prize).toBe(0);
+    expect(byName['Quy Nguyen']?.totalPrize).toBe(120);
 
     expect(standings.rows.map((r) => r.participant.playerName)).toEqual([
       'Quy Nguyen',
@@ -61,7 +62,26 @@ describe('computeMonthStandings', () => {
       'An Trần',
       'Huy Pham',
     ]);
-    expect(standings.totalAwarded).toBe(160 + 320);
+    expect(standings.totalAwarded).toBe(160);
+  });
+
+  it('shows the month prize provisionally once the last GW has started', () => {
+    const standings = computeMonthStandings({
+      gameweeks: [gw(10, 'finished'), gw(11, 'finished'), gw(12, 'live')],
+      participants,
+      scores: {
+        1: [score(10, 71), score(11, 50), score(12, 10)],
+        2: [score(10, 61), score(11, 50), score(12, 10)],
+        3: [score(10, 59), score(11, 40), score(12, 10)],
+        4: [score(10, 44, { transferCost: 4 }), score(11, 40), score(12, 10)],
+      },
+      rules: LEAGUE_RULES,
+    });
+    expect(standings.monthState).toBe('provisional');
+    expect(standings.monthPrizeState).toBe('provisional');
+    const byName = Object.fromEntries(standings.rows.map((r) => [r.participant.playerName, r]));
+    expect(byName['Quy Nguyen']?.month.prize).toBe(240);
+    expect(byName['Hieu Bui']?.month.prize).toBe(80);
   });
 
   it('uses month chips and bench totals as tie-breakers', () => {
@@ -78,6 +98,8 @@ describe('computeMonthStandings', () => {
     expect(standings.rows[0]?.participant.playerName).toBe('Hieu Bui');
     expect(standings.rows[0]?.month.position).toBe(1);
     expect(standings.monthState).toBe('final');
+    expect(standings.monthPrizeState).toBe('final');
+    expect(standings.rows[0]?.month.prize).toBe(120); // 2 players: month 160 → 120 / 40
   });
 
   it('treats a missing gameweek score as zero', () => {
@@ -101,6 +123,7 @@ describe('computeMonthStandings', () => {
       rules: LEAGUE_RULES,
     });
     expect(standings.monthState).toBe('pending');
+    expect(standings.monthPrizeState).toBe('pending');
     expect(standings.totalAwarded).toBe(0);
     expect(standings.rows.every((r) => r.month.position === null)).toBe(true);
   });

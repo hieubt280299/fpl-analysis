@@ -65,7 +65,12 @@ export function useFixtures(refetchInterval: RefetchInterval = false) {
   });
 }
 
-export function useLeagueMembers(leagueId: number | undefined, enabled = true) {
+/** League members with their live season total and current-gameweek points. */
+export function useLeagueMembers(
+  leagueId: number | undefined,
+  enabled = true,
+  refetchInterval: RefetchInterval = false,
+) {
   return useQuery({
     queryKey: fplKeys.league(leagueId ?? 0),
     queryFn: async ({ signal }): Promise<{ leagueName: string; members: LeagueMember[] }> => {
@@ -74,6 +79,7 @@ export function useLeagueMembers(leagueId: number | undefined, enabled = true) {
     },
     enabled: enabled && typeof leagueId === 'number' && leagueId > 0,
     staleTime: 2 * MINUTE,
+    refetchInterval,
   });
 }
 
@@ -90,6 +96,8 @@ export interface EntryHistoriesResult {
   /** When the oldest shown history was fetched (ms epoch), or null if none loaded. */
   oldestUpdatedAt: number | null;
   refetch: () => void;
+  /** Refetches every history; resolves to true when all of them loaded successfully. */
+  refresh: () => Promise<boolean>;
 }
 
 /**
@@ -144,6 +152,10 @@ export function useEntryHistories(
         refreshError,
         oldestUpdatedAt: updatedAt.length ? Math.min(...updatedAt) : null,
         refetch: () => results.forEach((r) => void r.refetch()),
+        refresh: async () => {
+          const refreshed = await Promise.all(results.map((r) => r.refetch()));
+          return refreshed.every((r) => !r.isError);
+        },
       };
     },
     [entryIds, enabled],

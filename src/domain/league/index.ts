@@ -4,3 +4,4 @@ export * from './prizes';
 export * from './ranking';
 export * from './monthStandings';
 export * from './progress';
+export * from './liveScores';

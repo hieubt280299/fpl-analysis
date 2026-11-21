@@ -18,10 +18,10 @@ function Amount({ value, state }: { value: number; state: ResultState }) {
 
 /** The "Prizes" table: what each player has won this month, biggest winner first. */
 export function PrizesTable({ standings }: { standings: MonthStandings }) {
-  const { columns, monthState, prizes } = standings;
+  const { columns, monthState, monthPrizeState, prizes } = standings;
   const rows = sortByTotalPrize(standings.rows);
   const unallocated = prizes.pot - standings.totalAwarded;
-  const allAwarded = monthState !== 'pending' && columns.every((c) => c.state !== 'pending');
+  const allAwarded = monthPrizeState !== 'pending';
 
   return (
     <Card
@@ -55,7 +55,7 @@ export function PrizesTable({ standings }: { standings: MonthStandings }) {
                   </td>
                 ))}
                 <td className="num">
-                  <Amount value={row.month.prize} state={monthState} />
+                  <Amount value={row.month.prize} state={monthPrizeState} />
                 </td>
                 <td className="num font-semibold">
                   <Amount value={row.totalPrize} state={monthState} />

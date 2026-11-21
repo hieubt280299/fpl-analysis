@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapEntryHistory, mapEventStatus, mapGameweeks } from './mappers';
+import { mapEntryHistory, mapEventStatus, mapGameweeks, mapLeagueMember } from './mappers';
 import type { FplEvent } from './types';
 
 describe('mapEntryHistory', () => {
@@ -32,6 +32,28 @@ describe('mapEntryHistory', () => {
       { gameweek: 9, points: 66, transferCost: 0, benchPoints: 13, chip: 'freehit' },
       { gameweek: 10, points: 44, transferCost: 4, benchPoints: 3, chip: null },
     ]);
+  });
+});
+
+describe('mapLeagueMember', () => {
+  it('keeps the live gameweek points and season total', () => {
+    expect(
+      mapLeagueMember({
+        entry: 5712963,
+        entry_name: 'HuyJP',
+        player_name: 'Huy Pham',
+        rank: 5,
+        total: 550,
+        event_total: 4,
+      }),
+    ).toEqual({
+      entryId: 5712963,
+      entryName: 'HuyJP',
+      playerName: 'Huy Pham',
+      rank: 5,
+      totalPoints: 550,
+      eventPoints: 4,
+    });
   });
 });
 

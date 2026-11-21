@@ -18,7 +18,7 @@ export function PrizeBreakdown({
   timeZone: string;
   eventStatus: EventStatus | null;
 }) {
-  const { prizes, columns, monthState } = standings;
+  const { prizes, columns, monthPrizeState } = standings;
   const share = (amount: number) => (prizes.pot > 0 ? formatPercent(amount / prizes.pot) : '–');
 
   return (
@@ -60,7 +60,7 @@ export function PrizeBreakdown({
             <tr>
               <td>
                 <span className="mr-2 font-medium">Month</span>
-                <ResultStateBadge state={monthState} />
+                <ResultStateBadge state={monthPrizeState} />
               </td>
               <td className="text-slate-500">All GWs</td>
               <td className="num">{formatAmount(prizes.monthPrizes[0] ?? 0)}</td>

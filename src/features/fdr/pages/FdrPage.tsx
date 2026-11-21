@@ -167,10 +167,6 @@ export function FdrPage() {
                   {fdr.dataUpdatedAt ? formatDateTime(fdr.dataUpdatedAt.toISOString()) : '–'}
                 </strong>
               </p>
-              <p>
-                This season’s table:{' '}
-                {fdr.positionSource === 'official' ? 'from FPL' : 'worked out from results'}
-              </p>
               {fdr.settings.updatedAt && (
                 <p>
                   Settings changed {formatDateTime(fdr.settings.updatedAt.toISOString())}

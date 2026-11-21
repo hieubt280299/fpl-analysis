@@ -17,37 +17,52 @@ export type PositionSource = 'official' | 'calculated';
 
 /**
  * This season's positions for the FDR table.
- * Prefers the official table published by FPL (`teams[].position`, which applies the PL's full
- * tie-breakers). Falls back to the table calculated from results when FPL's positions are missing
- * or inconsistent (e.g. all 0, or not exactly 1..N).
+ *
+ * The order comes from results (points, goal difference, goals scored). FPL's official table
+ * (`teams[].position`) is only used to order teams level on all three — it applies the PL's
+ * head-to-head tie-breakers — because FPL updates it later than match results: on
+ * 21 Nov 2026 it still had Fulham 15th after their draw at Man City had moved them to 14th.
+ *
+ * `source` is 'official' when the result is exactly FPL's table, otherwise 'calculated' (FPL's
+ * table is behind, or its positions are missing / not exactly 1..N). Without any calculated table
+ * (fixtures not loaded yet) a valid official table is used as is.
  */
 export function resolveThisSeasonPositions(
   teams: readonly Team[],
   calculated: readonly LeagueTableRow[],
 ): { positions: Map<number, number>; source: PositionSource } {
-  const official = teams.map((t) => t.officialPosition ?? 0);
-  const expected = new Set(teams.map((_, i) => i + 1));
-  const isValid =
+  const official = new Map(teams.map((t) => [t.id, t.officialPosition ?? 0]));
+  const values = [...official.values()];
+  const officialValid =
     teams.length > 0 &&
-    official.every((p) => expected.has(p)) &&
-    new Set(official).size === teams.length;
+    values.every((p) => Number.isInteger(p) && p >= 1 && p <= teams.length) &&
+    new Set(values).size === teams.length;
 
-  if (isValid) {
-    return {
-      positions: new Map(teams.map((t) => [t.id, t.officialPosition as number])),
-      source: 'official',
-    };
+  if (calculated.length === 0) {
+    return officialValid
+      ? { positions: official, source: 'official' }
+      : { positions: new Map(), source: 'calculated' };
   }
-  return {
-    positions: new Map(calculated.map((r) => [r.team.id, r.position])),
-    source: 'calculated',
-  };
+
+  const tieBreak = (row: LeagueTableRow) => (officialValid ? (official.get(row.team.id) ?? 0) : 0);
+  const ranked = [...calculated].sort(
+    (a, b) =>
+      b.points - a.points ||
+      b.goalDifference - a.goalDifference ||
+      b.goalsFor - a.goalsFor ||
+      tieBreak(a) - tieBreak(b) ||
+      a.team.name.localeCompare(b.team.name),
+  );
+  const positions = new Map(ranked.map((row, index) => [row.team.id, index + 1]));
+  const matchesOfficial =
+    officialValid && ranked.every((row, index) => official.get(row.team.id) === index + 1);
+  return { positions, source: matchesOfficial ? 'official' : 'calculated' };
 }
 
 /**
  * Builds the current Premier League table from finished fixtures.
  * Ordering: points, goal difference, goals scored, then team name. (The PL's further
- * tie-breakers — head-to-head etc. — are not modelled; prefer the official FPL positions.)
+ * tie-breakers — head-to-head etc. — are not modelled; see resolveThisSeasonPositions.)
  */
 export function computeLeagueTable(
   teams: readonly Team[],
