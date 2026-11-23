@@ -154,6 +154,7 @@ export function PointsTable({
         <ul className="list-disc space-y-0.5 pl-4">
           <li>GW: FPL points before hits. The hit (−4) is shown under the score.</li>
           <li>Month: total points after hits.</li>
+          <li>Live GW: points include expected auto-subs and bonus, like the Current GW page.</li>
           <li>Green = 1st, light green = 2nd. “=” means a shared place.</li>
           <li>Same points? Fewer chips wins, then more bench points (Show chips & bench).</li>
         </ul>

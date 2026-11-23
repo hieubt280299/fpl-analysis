@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { IMPORTANCE_LIST_SIZE } from '@/config/gameweek';
 import type { ImportanceItem, Lineup } from '@/domain/gameweek';
 import type { Participant } from '@/domain/league';
 import { competitionRanks } from '@/domain/shared/math';
@@ -23,6 +25,11 @@ function ImportanceList({
   lookups: Lookups;
   timeZone: string;
 }) {
+  // The list may hold more than IMPORTANCE_LIST_SIZE players when several share the last place's
+  // %. They are folded behind "+N more" (already ordered by live points within each %).
+  const [expanded, setExpanded] = useState(false);
+  const hidden = Math.max(0, items.length - IMPORTANCE_LIST_SIZE);
+  const shown = expanded ? items : items.slice(0, IMPORTANCE_LIST_SIZE);
   return (
     <div>
       <h4
@@ -37,7 +44,7 @@ function ImportanceList({
         <p className="text-xs text-slate-400">None</p>
       ) : (
         <ul className="space-y-1">
-          {items.map((item) => {
+          {shown.map((item) => {
             const pick = lineup.picks.find((p) => p.playerId === item.playerId);
             return (
               <li
@@ -75,6 +82,17 @@ function ImportanceList({
             );
           })}
         </ul>
+      )}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="mt-1 min-h-9 text-xs text-slate-500 hover:text-slate-800 hover:underline sm:min-h-0"
+          aria-expanded={expanded}
+          title="More players with the same % as the last one shown"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? 'Show less' : `+${hidden} more`}
+        </button>
       )}
     </div>
   );
@@ -178,6 +196,10 @@ export function ImportanceSection({ view }: { view: GameweekView }) {
           </li>
           <li>Points are live, with bonus and subs worked out before FPL adds them.</li>
           <li>Next to each player: Done, In play (minute), or the match still to come (H/A).</li>
+          <li>
+            Top {IMPORTANCE_LIST_SIZE} are shown. Players with the same % as the last one are behind
+            “+ more”, highest points first.
+          </li>
         </ul>
       }
     >

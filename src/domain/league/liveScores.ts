@@ -44,3 +44,21 @@ export function applyLiveStandings(
   }
   return result;
 }
+
+/**
+ * Replaces each entry's score for a gameweek with a live one worked out from its picks (live
+ * points, projected automatic subs and captaincy — see `lineupScore`). Entries without a live
+ * score keep what they had; entries with only a live score get a history of that one gameweek.
+ */
+export function applyLiveScores(
+  scores: Readonly<Record<number, readonly GameweekScore[]>>,
+  live: ReadonlyMap<number, GameweekScore>,
+): Record<number, GameweekScore[]> {
+  const result: Record<number, GameweekScore[]> = {};
+  for (const [key, history] of Object.entries(scores)) result[Number(key)] = [...history];
+  for (const [entryId, score] of live) {
+    const history = (result[entryId] ?? []).filter((s) => s.gameweek !== score.gameweek);
+    result[entryId] = [...history, score].sort((a, b) => a.gameweek - b.gameweek);
+  }
+  return result;
+}

@@ -74,6 +74,54 @@ describe('computeImportance', () => {
     expect(computeImportance([A, B, C], POINTS, 1)[2]?.threats).toHaveLength(1);
   });
 
+  it('also shows every player level with the last place', () => {
+    // Four managers. D owns 61–65 alone: gap 1 each. 66 is shared with E: 1 − 1/3 = 2/3.
+    // F and G own one player each (67, 68), so every player E lacks is a −1/3 threat to E.
+    const D = lineup(4, [
+      [61, 1],
+      [62, 1],
+      [63, 1],
+      [64, 1],
+      [65, 1],
+      [66, 1],
+    ]);
+    const E = lineup(5, [[66, 1]]);
+    const F = lineup(6, [[67, 1]]);
+    const G = lineup(7, [[68, 1]]);
+    const points = new Map([
+      [61, 1],
+      [62, 9],
+      [63, 5],
+      [64, 3],
+      [65, 7],
+    ]);
+    const [d, e] = computeImportance([D, E, F, G], points, 3);
+    // Five players share the top gap (1): all of them, most points first; 66 (2/3) is cut.
+    expect(d?.differentials.map((i) => i.playerId)).toEqual([62, 65, 63, 64, 61]);
+    // E's threats: 61–65 all at −1/3 (tied with #3), then 67, 68 also at −1/3.
+    expect(e?.threats).toHaveLength(7);
+    // Fewer than the limit: nothing is padded.
+    expect(e?.differentials.map((i) => i.playerId)).toEqual([66]);
+  });
+
+  it('orders equal gaps by live points even when float maths makes them differ slightly', () => {
+    // E's threats are both −1/3: 70 = 1 − (2+1+1)/3 → −0.33333333333333326 and
+    // 71 = 0 − 1/3 → −0.3333333333333333. 70 scored more, so it comes first.
+    const E = lineup(1, [[70, 1]]);
+    const F = lineup(2, [
+      [70, 2],
+      [71, 1],
+    ]);
+    const G = lineup(3, [[70, 1]]);
+    const H = lineup(4, [[70, 1]]);
+    const points = new Map([
+      [70, 9],
+      [71, 2],
+    ]);
+    const [e] = computeImportance([E, F, G, H], points, 1);
+    expect(e?.threats.map((i) => i.playerId)).toEqual([70, 71]);
+  });
+
   it('has nothing to compare with a single manager', () => {
     expect(computeImportance([A], POINTS, 3)).toEqual([
       { entryId: 1, differentials: [], threats: [] },

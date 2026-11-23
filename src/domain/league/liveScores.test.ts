@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyLiveStandings, type LiveStanding } from './liveScores';
+import { applyLiveScores, applyLiveStandings, type LiveStanding } from './liveScores';
 import type { GameweekScore } from './types';
 
 function score(gameweek: number, points: number, transferCost = 0): GameweekScore {
@@ -45,5 +45,33 @@ describe('applyLiveStandings', () => {
     const scores = { [HUY]: huyHistory };
     applyLiveStandings(scores, 11, new Map([[HUY, huyLive]]));
     expect(huyHistory[2]?.points).toBe(0);
+  });
+});
+
+describe('applyLiveScores', () => {
+  const live = (points: number, benchPoints = 3, chip: string | null = null): GameweekScore => ({
+    gameweek: 11,
+    points,
+    transferCost: 4,
+    benchPoints,
+    chip,
+  });
+
+  it("replaces the gameweek's score with the live one (points, bench and chip)", () => {
+    const out = applyLiveScores({ [HUY]: huyHistory }, new Map([[HUY, live(13, 5, 'bboost')]]));
+    expect(out[HUY]).toEqual([score(9, 510), score(10, 44, 4), live(13, 5, 'bboost')]);
+  });
+
+  it('adds the gameweek when the history does not have it yet, in gameweek order', () => {
+    const out = applyLiveScores({ 1: [score(10, 60), score(12, 0)] }, new Map([[1, live(8)]]));
+    expect(out[1]?.map((s) => s.gameweek)).toEqual([10, 11, 12]);
+    expect(applyLiveScores({}, new Map([[2, live(8)]]))[2]).toEqual([live(8)]);
+  });
+
+  it('keeps entries without a live score and does not mutate the input', () => {
+    const scores = { [HUY]: huyHistory, 1: [score(11, 20)] };
+    const out = applyLiveScores(scores, new Map([[HUY, live(13)]]));
+    expect(out[1]).toEqual([score(11, 20)]);
+    expect(huyHistory[2]).toEqual(score(11, 0, 4));
   });
 });

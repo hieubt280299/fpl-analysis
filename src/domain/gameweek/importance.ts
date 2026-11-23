@@ -25,13 +25,38 @@ export interface ManagerImportance {
   threats: ImportanceItem[];
 }
 
+/** Gaps are fractions (e.g. 1 − 2/3); closer than this counts as equal. */
+const GAP_EPSILON = 1e-9;
+
+/** Compares gaps, treating near-equal ones (float noise) as equal. */
+function compareGaps(a: number, b: number): number {
+  return Math.abs(a - b) < GAP_EPSILON ? 0 : a - b;
+}
+
+/**
+ * The first `limit` items of a sorted list, plus every further item whose gap equals the last
+ * one kept — players level with the last place are never cut off.
+ */
+function topWithTies(sorted: readonly ImportanceItem[], limit: number): ImportanceItem[] {
+  if (limit <= 0) return [];
+  const cutoff = sorted[limit - 1];
+  if (!cutoff) return [...sorted];
+  let end = limit;
+  while (end < sorted.length && compareGaps(sorted[end]?.gap ?? 0, cutoff.gap) === 0) {
+    end += 1;
+  }
+  return sorted.slice(0, end);
+}
+
 function multiplierOf(lineup: Lineup, playerId: number): number {
   return lineup.picks.find((p) => p.playerId === playerId)?.multiplier ?? 0;
 }
 
 /**
  * Differentials and threats for every manager, ranked by the ownership gap against the other
- * managers (as fplgameweek.com's "Importance"). Ties go to the player with more live points.
+ * managers (as fplgameweek.com's "Importance"). Players with the same gap are ordered by live
+ * points, highest first. Each list holds at least `limit` players (when there are that many) plus
+ * every player whose gap equals the last one's; the UI shows `limit` and folds the rest.
  * The gap uses the live lineups, so projected subs and captaincy changes count.
  */
 export function computeImportance(
@@ -68,14 +93,14 @@ export function computeImportance(
       b.points - a.points || a.playerId - b.playerId;
     return {
       entryId: lineup.entryId,
-      differentials: items
-        .filter((i) => i.gap > 0)
-        .sort((a, b) => b.gap - a.gap || byPoints(a, b))
-        .slice(0, limit),
-      threats: items
-        .filter((i) => i.gap < 0)
-        .sort((a, b) => a.gap - b.gap || byPoints(a, b))
-        .slice(0, limit),
+      differentials: topWithTies(
+        items.filter((i) => i.gap > 0).sort((a, b) => compareGaps(b.gap, a.gap) || byPoints(a, b)),
+        limit,
+      ),
+      threats: topWithTies(
+        items.filter((i) => i.gap < 0).sort((a, b) => compareGaps(a.gap, b.gap) || byPoints(a, b)),
+        limit,
+      ),
     };
   });
 }

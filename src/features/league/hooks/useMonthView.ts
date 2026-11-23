@@ -1,7 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { LEAGUE_RULES, LIVE_REFRESH_INTERVAL_MS } from '@/config/league';
 import { hasLiveMatch } from '@/domain/fdr';
+import { currentGameweek } from '@/domain/gameweek';
 import {
+  applyLiveScores,
   applyLiveStandings,
   computeMonthStandings,
   groupGameweeksByMonth,
@@ -25,6 +27,7 @@ import {
 } from '@/lib/fpl/queries';
 import { useNow } from '@/utils/useNow';
 import { monthsAwaitingFinalization, type MonthSnapshot } from '../model';
+import { useLiveGameweekScores } from './useLiveGameweekScores';
 import { useMonthDoc, useSavedMonths } from './useMonths';
 
 export interface MonthOption {
@@ -191,14 +194,24 @@ export function useMonthView(monthKey: MonthKey) {
   const leagueName = savedLeagueName ?? league.data?.leagueName ?? null;
 
   // The standings' GW points belong to FPL's current GW: the latest one whose deadline passed.
-  const currentGameweekId = season.data?.gameweeks
-    .filter((gw) => gw.status !== 'upcoming')
-    .at(-1)?.id;
+  const currentGw = season.data ? currentGameweek(season.data.gameweeks) : undefined;
+  const currentGameweekId = currentGw?.id;
+  // While that GW is being played and belongs to this month, work its points out from the picks
+  // (projected auto-subs, like the Current GW page). FPL's standings leave subs out until the GW
+  // is processed; they stay the fallback for teams whose picks or live data didn't load.
+  const liveGameweekId =
+    needsLiveScores && currentGw?.status === 'live' && monthGameweekIds.includes(currentGw.id)
+      ? currentGw.id
+      : undefined;
+  const liveLineups = useLiveGameweekScores(liveGameweekId, entryIds, liveInterval);
   const liveScores = useMemo(() => {
-    if (!league.data || currentGameweekId === undefined) return histories.scores;
-    const live = new Map(league.data.members.map((m) => [m.entryId, m] as const));
-    return applyLiveStandings(histories.scores, currentGameweekId, live);
-  }, [histories.scores, league.data, currentGameweekId]);
+    let result = histories.scores;
+    if (league.data && currentGameweekId !== undefined) {
+      const live = new Map(league.data.members.map((m) => [m.entryId, m] as const));
+      result = applyLiveStandings(result, currentGameweekId, live);
+    }
+    return liveLineups.scores.size ? applyLiveScores(result, liveLineups.scores) : result;
+  }, [histories.scores, league.data, currentGameweekId, liveLineups.scores]);
 
   const scores = snapshot ? snapshot.scores : liveScores;
   const rules = snapshot?.rules ?? CURRENT_RULES;
@@ -211,16 +224,27 @@ export function useMonthView(monthKey: MonthKey) {
   const scoresComplete =
     !needsLiveScores || (!histories.isPending && histories.failedEntryIds.length === 0);
   // Never freeze results from cached data while FPL can't be reached.
-  const refreshError = monthOptions.refreshError ?? (snapshot ? null : histories.refreshError);
+  const refreshError =
+    monthOptions.refreshError ??
+    (snapshot ? null : (histories.refreshError ?? liveLineups.refreshError));
   const updatedTimes = [season.dataUpdatedAt, histories.oldestUpdatedAt ?? 0].filter((t) => t > 0);
-  const pointsTimes = [histories.oldestUpdatedAt ?? 0, league.dataUpdatedAt].filter((t) => t > 0);
+  const pointsTimes = [
+    histories.oldestUpdatedAt ?? 0,
+    league.dataUpdatedAt,
+    liveLineups.updatedAt ?? 0,
+  ].filter((t) => t > 0);
   const pointsUpdatedAt = pointsTimes.length ? new Date(Math.min(...pointsTimes)) : null;
   const { refresh: refreshHistories } = histories;
   const { refetch: refetchLeague } = league;
+  const { refresh: refreshLive } = liveLineups;
   const refreshPoints = useCallback(async () => {
-    const [historiesOk, standings] = await Promise.all([refreshHistories(), refetchLeague()]);
-    return historiesOk && !standings.isError;
-  }, [refreshHistories, refetchLeague]);
+    const [historiesOk, standings, liveOk] = await Promise.all([
+      refreshHistories(),
+      refetchLeague(),
+      refreshLive(),
+    ]);
+    return historiesOk && !standings.isError && liveOk;
+  }, [refreshHistories, refetchLeague, refreshLive]);
 
   const canFinalize =
     doc !== null &&
@@ -274,11 +298,11 @@ export function useMonthView(monthKey: MonthKey) {
       /** A match of this month is being played: points refresh automatically. */
       autoRefreshing: matchLive,
       isPending: needsLiveScores && histories.isPending,
-      isFetching: histories.isFetching,
+      isFetching: histories.isFetching || liveLineups.isFetching,
       failedEntryIds: histories.failedEntryIds,
       errors: histories.errors,
       refetch: histories.refetch,
-      /** When the points on screen were fetched (oldest of the histories and the live standings). */
+      /** When the points on screen were fetched (oldest of histories, standings and live data). */
       updatedAt: pointsUpdatedAt,
       /** Refreshes histories and live standings; resolves to true when everything loaded. */
       refresh: refreshPoints,

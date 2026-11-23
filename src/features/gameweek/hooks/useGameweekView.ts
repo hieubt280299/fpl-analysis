@@ -8,11 +8,11 @@ import {
   currentGameweek,
   fixturesByTeam,
   isAnyMatchLive,
+  lineupContext,
   lineupPoints,
   livePlayerPoints,
   ownershipMatrix,
   sortMatches,
-  teamsDone,
   type Lineup,
   type Player,
   type TeamFixture,
@@ -71,15 +71,13 @@ export function useGameweekView() {
 
   const lineups = useMemo<Lineup[]>(() => {
     if (!season.data || !live.data || !matchesQuery.data) return [];
-    const ctx = {
-      minutes: new Map(live.data.map((p) => [p.id, p.minutes] as const)),
-      teamOf: new Map(season.data.players.map((p) => [p.id, p.teamId] as const)),
-      doneTeams: teamsDone(
-        matchesQuery.data,
-        season.data.teams.map((t) => t.id),
-      ),
+    const ctx = lineupContext({
+      live: live.data,
+      matches: matchesQuery.data,
+      players: season.data.players,
+      teamIds: season.data.teams.map((t) => t.id),
       gameweekFinished: gameweek?.status === 'finished',
-    };
+    });
     return entryIds.flatMap((id) => {
       const entry = picks.picks[id];
       return entry ? [buildLineup(entry, ctx)] : [];
